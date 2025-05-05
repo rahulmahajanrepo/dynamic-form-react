@@ -27,11 +27,11 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
-import { Field, GridColumn, FieldType } from './types';
+import { GridField, GridColumn, FieldType } from './types';
 
 interface GridFieldSetupProps {
-  field: Field;
-  onUpdate: (updatedField: Field) => void;
+  field: GridField; // Now using the specific GridField type
+  onUpdate: (updatedField: GridField) => void;
 }
 
 const SortableColumnRow = ({ column, index, onUpdate, onDelete }: {
@@ -76,7 +76,7 @@ const SortableColumnRow = ({ column, index, onUpdate, onDelete }: {
             value={column.type}
             label="Type"
             onChange={(e) => {
-              const newType = e.target.value as Exclude<Field['type'], 'grid'>;
+              const newType = e.target.value as Exclude<FieldType, 'grid'>;
               const updatedColumn: GridColumn = {
                 ...column,
                 type: newType,

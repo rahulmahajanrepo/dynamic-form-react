@@ -4,8 +4,9 @@ import {
   Radio, RadioGroup, Typography, FormHelperText, Checkbox,
   InputLabel, FormControl, FormLabel, FormGroup, Paper
 } from '@mui/material';
-import { Form, Field } from './types';
+import { Form, Field, GridField, GridValue } from './types';
 import DataGrid from './DataGrid';
+import GridRenderer from './GridRenderer';
 
 interface FormRendererProps {
   form: Form;
@@ -14,7 +15,7 @@ interface FormRendererProps {
 
 const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit }) => {
   const [formValues, setFormValues] = useState<Record<string, any>>({});
-  const [gridValues, setGridValues] = useState<Record<string, any[]>>({});
+  const [gridValues, setGridValues] = useState<Record<string, GridValue>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   
@@ -33,6 +34,14 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit }) => {
     setFormValues(prev => ({ ...prev, [name]: value }));
     setTouched(prev => ({ ...prev, [name]: true }));
     validateField(name, value);
+  };
+  
+  // Add this function to handle grid changes
+  const handleGridChange = (name: string, value: GridValue) => {
+    setGridValues(prev => ({ ...prev, [name]: value }));
+    setTouched(prev => ({ ...prev, [name]: true }));
+    // Validate grid if needed
+    validateField(name, value.rows);
   };
   
   // Validate a single field
@@ -304,19 +313,12 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit }) => {
                 </FormControl>
               )}
               {field.type === 'grid' && (
-                <Box sx={{ width: '100%', mt: 1 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 1 }}>{field.label}</Typography>
-                  <DataGrid
-                    columns={field.columns || []}
-                    rows={gridValues[field.name] || (field.data || [])}
-                    onChange={(updatedRows) => {
-                      setGridValues(prev => ({
-                        ...prev,
-                        [field.name]: updatedRows
-                      }));
-                    }}
-                  />
-                </Box>
+                <GridRenderer
+                  field={field as GridField} // Add type assertion here
+                  value={gridValues[field.name] || { rows: [] }} // Provide a default value with empty rows
+                  onChange={(value) => handleGridChange(field.name, value)}
+                  error={touched[field.name] && errors[field.name] ? errors[field.name] : undefined} // Ensure we pass string or undefined
+                />
               )}
             </Box>
           ))}

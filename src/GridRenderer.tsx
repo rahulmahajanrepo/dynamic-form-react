@@ -21,16 +21,25 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import { Field, GridColumn, GridValue } from './types';
+import { GridField, GridColumn, GridValue } from './types';
 
+// Update props interface to include disabled prop
 interface GridRendererProps {
-  field: Field;
-  value: GridValue;
+  field: GridField;
+  value?: GridValue;
   onChange: (value: GridValue) => void;
-  disabled?: boolean;
+  error?: string;
+  disabled?: boolean; // Add this prop
 }
 
-const GridRenderer: React.FC<GridRendererProps> = ({ field, value, onChange, disabled = false }) => {
+// Update component function signature to include disabled with default value
+const GridRenderer: React.FC<GridRendererProps> = ({
+  field,
+  value,
+  onChange,
+  error,
+  disabled = false // Default to false if not provided
+}) => {
   const [rows, setRows] = useState<Record<string, any>[]>(value?.rows || []);
 
   // Initialize default rows if needed

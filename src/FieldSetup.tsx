@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // Add useRef import
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   TextField,
@@ -15,7 +15,20 @@ import {
   IconButton
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { Field } from './types';
+import {
+  Field,
+  isTextField,
+  isNumberField,
+  isDropdownField,
+  isRadioField,
+  isCheckboxField,
+  isGridField,
+  TextField as TextFieldType, 
+  DropdownField,
+  NumberField,
+  GridField,
+  BaseField
+} from './types';
 import GridFieldSetup from './GridFieldSetup';
 import { formatNameToLabel } from './utils';
 
@@ -28,15 +41,21 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
   // Track if label has been manually edited
   const [labelManuallyEdited, setLabelManuallyEdited] = useState(false);
   const [optionsText, setOptionsText] = useState('');
-  
+
   // Add a ref for the name input
   const nameInputRef = useRef<HTMLInputElement>(null);
-  
+
   // When field changes (e.g., when a new field is selected), reset the manual edit state and focus
   useEffect(() => {
     setLabelManuallyEdited(false);
-    setOptionsText((field.options || []).join(','));
     
+    // Only set options text if the field has options
+    if (isDropdownField(field) || isRadioField(field)) {
+      setOptionsText((field.options || []).join(','));
+    } else {
+      setOptionsText('');
+    }
+
     // Focus on the name field when a new field is selected
     if (nameInputRef.current) {
       setTimeout(() => {
@@ -44,11 +63,12 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
       }, 0);
     }
   }, [field.name, field.type]);
-  
-  // Common handler for updating field values
-  const handleChange = (name: keyof Field) => (event: React.ChangeEvent<HTMLInputElement>) => {
+
+  // Replace the handleChange function with these type-safe handlers
+  // Common handler for updating base field values
+  const handleBaseChange = (name: keyof BaseField) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.type === 'checkbox' ? event.target.checked : event.target.value;
-    
+
     // Special case for name field - update label if it hasn't been manually edited
     if (name === 'name' && !labelManuallyEdited && typeof value === 'string') {
       onUpdate({
@@ -60,53 +80,147 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
       onUpdate({ ...field, [name]: value });
     }
   };
-  
+
+  // Handler for text field specific properties
+  const handleTextFieldChange = (name: keyof TextFieldType) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isTextField(field)) {
+      onUpdate({
+        ...field,
+        [name]: event.target.value
+      });
+    }
+  };
+
+  // Handler for number field specific properties
+  const handleNumberFieldChange = (name: keyof NumberField) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isNumberField(field)) {
+      onUpdate({
+        ...field,
+        [name]: event.target.value
+      });
+    }
+  };
+
   // Special handler for label to track manual edits
   const handleLabelChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setLabelManuallyEdited(true);
     onUpdate({ ...field, label: event.target.value });
   };
-  
+
   // Handle options for multi-value fields
   const handleOptionsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setOptionsText(event.target.value);
   };
-  
+
+  // Alternative solution with type assertions
   const handleOptionsBlur = () => {
-    if (optionsText.trim()) {
+    if (optionsText.trim() && (isDropdownField(field) || isRadioField(field))) {
       const newOptions = optionsText
         .split(',')
         .map(opt => opt.trim())
         .filter(opt => opt !== '');
-      
-      onUpdate({
+
+      // Since we've verified the field type, we can safely update options
+      const updatedField = {
         ...field,
         options: newOptions
-      });
+      };
+      
+      // Type assertion to satisfy TypeScript
+      onUpdate(updatedField as Field);
     }
   };
-  
-  if (field.type === 'grid') {
-    return <GridFieldSetup field={field} onUpdate={onUpdate} />;
-  }
+
+  // Use type guards to render appropriate fields
+  const renderFieldSpecificControls = () => {
+    if (isTextField(field)) {
+      return (
+        <>
+          <TextField
+            fullWidth
+            label="Min Length"
+            value={field.minLength || ''}
+            onChange={handleTextFieldChange('minLength')}
+            type="number"
+            size="small"
+          />
+          <TextField
+            fullWidth
+            label="Max Length"
+            value={field.maxLength || ''}
+            onChange={handleTextFieldChange('maxLength')}
+            type="number"
+            size="small"
+          />
+          {/* Other text-specific fields */}
+        </>
+      );
+    }
+
+    if (isNumberField(field)) {
+      return (
+        <>
+          <TextField
+            fullWidth
+            label="Min Value"
+            value={field.min || ''}
+            onChange={handleNumberFieldChange('min')}
+            type="number"
+            size="small"
+          />
+          <TextField
+            fullWidth
+            label="Max Value"
+            value={field.max || ''}
+            onChange={handleNumberFieldChange('max')}
+            type="number"
+            size="small"
+          />
+        </>
+      );
+    }
+
+    if (isDropdownField(field) || isRadioField(field)) {
+      return (
+        <TextField
+          fullWidth
+          label="Options (comma separated)"
+          value={optionsText}
+          onChange={handleOptionsChange}
+          onBlur={handleOptionsBlur}
+          helperText="Type options separated by commas"
+          margin="normal"
+          size="small"
+          multiline
+          rows={2}
+        />
+      );
+    }
+
+    if (isGridField(field)) {
+      return <GridFieldSetup field={field} onUpdate={onUpdate as (field: GridField) => void} />;
+    }
+
+    return null;
+  };
 
   return (
     <Box>
       <Typography variant="subtitle1" gutterBottom>
         Field Properties
       </Typography>
-      
+
       <TextField
         fullWidth
         label="Name"
         value={field.name || ''}
-        onChange={handleChange('name')}
+        onChange={handleBaseChange('name')}
         margin="normal"
         helperText="Unique identifier for this field"
         size="small"
         inputRef={nameInputRef} // Add the input ref here
       />
-      
+
       <TextField
         fullWidth
         label="Label"
@@ -128,133 +242,30 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
         helperText="Help text that appears on hover"
         size="small"
       />
-      
+
       <TextField
         fullWidth
         label="Placeholder"
         value={field.placeholder || ''}
-        onChange={handleChange('placeholder')}
+        onChange={handleBaseChange('placeholder')}
         margin="normal"
         size="small"
       />
-      
+
       <FormControlLabel
         control={
           <Switch
             checked={!!field.required}
-            onChange={handleChange('required')}
+            onChange={handleBaseChange('required')}
             color="primary"
           />
         }
         label="Required"
         sx={{ mt: 1 }}
       />
-      
-      {/* Field-specific properties */}
-      {(field.type === 'text' || field.type === 'textarea' || field.type === 'password') && (
-        <Box sx={{ mt: 2 }}>
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" gutterBottom>
-            Text Field Properties
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Min Length"
-              type="number"
-              value={field.minLength || ''}
-              onChange={handleChange('minLength')}
-              margin="normal"
-              size="small"
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="Max Length"
-              type="number"
-              value={field.maxLength || ''}
-              onChange={handleChange('maxLength')}
-              margin="normal"
-              size="small"
-              sx={{ flex: 1 }}
-            />
-          </Box>
-          
-          {field.type === 'text' && (
-            <TextField
-              fullWidth
-              label="Pattern (Regex)"
-              value={field.pattern || ''}
-              onChange={handleChange('pattern')}
-              margin="normal"
-              size="small"
-              helperText="Validation pattern (e.g., [A-Za-z]+ for letters only)"
-            />
-          )}
-        </Box>
-      )}
-      
-      {field.type === 'number' && (
-        <Box sx={{ mt: 2 }}>
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" gutterBottom>
-            Number Field Properties
-          </Typography>
-          
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <TextField
-              label="Min Value"
-              type="number"
-              value={field.min || ''}
-              onChange={handleChange('min')}
-              margin="normal"
-              size="small"
-              sx={{ flex: 1 }}
-            />
-            <TextField
-              label="Max Value"
-              type="number"
-              value={field.max || ''}
-              onChange={handleChange('max')}
-              margin="normal"
-              size="small"
-              sx={{ flex: 1 }}
-            />
-          </Box>
-        </Box>
-      )}
-      
-      {(field.type === 'dropdown' || field.type === 'radio') && (
-        <Box sx={{ mt: 2 }}>
-          <Divider sx={{ my: 2 }} />
-          <Typography variant="subtitle2" gutterBottom>
-            Options
-          </Typography>
-          
-          <TextField
-            fullWidth
-            label="Options (comma separated)"
-            value={optionsText}
-            onChange={handleOptionsChange}
-            onBlur={handleOptionsBlur}
-            helperText="Type options separated by commas, then click outside the field"
-            margin="normal"
-            size="small"
-            multiline
-            rows={2}
-          />
-          
-          <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-            {(field.options || []).map((option, index) => (
-              <Chip 
-                key={index} 
-                label={option} 
-                size="small" 
-                variant="outlined"
-              />
-            ))}
-          </Box>
-        </Box>
-      )}
+
+      {/* Field-specific controls */}
+      {renderFieldSpecificControls()}
     </Box>
   );
 };

@@ -54,7 +54,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
-import { Field, Form, Section } from './types';
+import { Field, Form, GridField, Section, DropdownField, RadioField,NumberField, CheckboxField, TextField as TextFieldType} from './types';
 import { formatNameToLabel } from './utils';
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'password', 'checkbox', 'grid'];
 
@@ -526,35 +526,61 @@ const Playground: React.FC = () => {
   const handleDropField = (sectionIndex: number, fieldType: Field['type'], position: number = -1) => {
     console.log(`Dropping ${fieldType} into section ${sectionIndex} at position ${position}`);
     let fieldName = `${fieldType}_${Date.now()}`;
-    let formattedLabel = formatNameToLabel(fieldType); // Use the same formatter
+    let formattedLabel = formatNameToLabel(fieldType);
     
     let newField: Field;
   
+    // Create the field based on type with proper type assertions
     if (fieldType === 'grid') {
       newField = {
         name: fieldName,
         type: fieldType,
         label: 'Data Grid',
+        placeholder: `Enter ${fieldType} value...`,
+        required: false,
         columns: [
           { name: 'Item', type: 'text' },
-          { name: 'Quantity', type: 'number' },
-          { name: 'Type', type: 'dropdown', options: ['A', 'B', 'C'] }
+          { name: 'Quantity', type: 'number' }
         ],
-        data: [
-          // Default row with empty values
-          { Item: '', Quantity: '', Type: '' }
-        ]
-      };
-    } else {
+        defaultRows: 1
+      } as GridField;
+    } else if (fieldType === 'dropdown' || fieldType === 'radio') {
       newField = {
         name: fieldName,
         type: fieldType,
         label: formattedLabel,
         placeholder: `Enter ${fieldType} value...`,
         required: false,
-      };
+        options: []
+      } as (typeof fieldType extends 'dropdown' ? DropdownField : RadioField);
+    } else if (fieldType === 'number') {
+      newField = {
+        name: fieldName,
+        type: fieldType,
+        label: formattedLabel,
+        placeholder: `Enter ${fieldType} value...`,
+        required: false
+      } as NumberField;
+    } else if (fieldType === 'checkbox') {
+      newField = {
+        name: fieldName,
+        type: fieldType,
+        label: formattedLabel,
+        placeholder: `Enter ${fieldType} value...`,
+        required: false
+      } as CheckboxField;
+    } else {
+      // Text, textarea, password
+      newField = {
+        name: fieldName,
+        type: fieldType as 'text' | 'textarea' | 'password',
+        label: formattedLabel,
+        placeholder: `Enter ${fieldType} value...`,
+        required: false
+      } as TextFieldType;
     }
     
+    // Add the field to the current section
     setForm((prev) => {
       const newSections = [...prev.sections];
       if (position === -1 || position > newSections[sectionIndex].fields.length) {
@@ -930,88 +956,7 @@ const Playground: React.FC = () => {
       {
         "name": "User Details",
         "fields": [
-          {
-            "name": "Name",
-            "type": "text" as Field['type'],
-            "label": "Name",
-            "placeholder": "Enter text value...",
-            "required": false
-          },
-          {
-            "name": "LastName",
-            "type": "text" as Field['type'],
-            "label": "Last Name",
-            "placeholder": "Enter text value...",
-            "required": false
-          },
-          {
-            "name": "number_1745729259175",
-            "type": "number" as Field['type'],
-            "label": "number Field",
-            "placeholder": "Enter number value...",
-            "required": false
-          }
         ]
-      },
-      {
-        "name": "Section 2",
-        "fields": [
-          {
-            "name": "Position",
-            "type": "text" as Field['type'],
-            "label": "text Field",
-            "placeholder": "Enter text value...",
-            "required": false
-          },
-          {
-            "name": "checkbox_1745729292576",
-            "type": "checkbox" as Field['type'],
-            "label": "checkbox Field",
-            "placeholder": "Enter checkbox value...",
-            "required": false
-          },
-          {
-            "name": "Calculator",
-            "type": "dropdown" as Field['type'],
-            "label": "Calculator",
-            "placeholder": "Enter dropdown value...",
-            "options": [
-              "arth",
-              "geo"
-            ],
-            "required": false
-          }
-        ]
-      },
-      {
-        "name": "Arth",
-        "fields": [
-          {
-            "name": "text_1745729433534",
-            "type": "text" as Field['type'],
-            "label": "text Field",
-            "placeholder": "Enter text value..."
-          }
-        ],
-        "conditionField": "Calculator",
-        "conditionValue": "arth"
-      },
-      {
-        "name": "Geo",
-        "fields": [
-          {
-            "name": "dropdown_1745729455310",
-            "type": "dropdown" as Field['type'],
-            "label": "dropdown Field",
-            "placeholder": "Enter dropdown value...",
-            "options": [
-              "Option 1",
-              "Option 2"
-            ]
-          }
-        ],
-        "conditionField": "Calculator",
-        "conditionValue": "geo"
       }
     ]
   };
@@ -1144,6 +1089,82 @@ const Playground: React.FC = () => {
       }
     }
   };
+
+  // Replace the field creation code to handle different field types correctly
+
+  // Create a base field function
+  const createBaseField = (name: string, type: Field['type'], label: string) => {
+    return {
+      name,
+      type,
+      label,
+      placeholder: `Enter ${type} value...`,
+      required: false
+    };
+  };
+
+  // Add this function near your other utility functions
+const generateFieldName = (type: Field['type']) => {
+  return `${type}_${Date.now()}`;
+};
+
+// Then modify the handleAddField function to include a fieldType parameter
+const handleAddField = (fieldType: Field['type']) => {
+  const fieldName = generateFieldName(fieldType);
+  const formattedLabel = formatNameToLabel(fieldName);
+  
+  let newField: Field;
+  
+  // Create the field based on type
+  if (fieldType === 'grid') {
+    // For grid fields, include the required columns property
+    newField = {
+      ...createBaseField(fieldName, fieldType, formattedLabel),
+      columns: [
+        { name: 'Item', type: 'text' },
+        { name: 'Quantity', type: 'number' }
+      ],
+      defaultRows: 1
+    } as GridField;
+  } else if (fieldType === 'dropdown' || fieldType === 'radio') {
+    // For dropdown and radio fields, include options
+    newField = {
+      ...createBaseField(fieldName, fieldType, formattedLabel),
+      options: []
+    } as (typeof fieldType extends 'dropdown' ? DropdownField : RadioField);
+  } else if (fieldType === 'number') {
+    newField = {
+      ...createBaseField(fieldName, fieldType, formattedLabel),
+      required: false
+    } as NumberField;
+  } else if (fieldType === 'checkbox') {
+    newField = {
+      ...createBaseField(fieldName, fieldType, formattedLabel),
+      required: false
+    } as CheckboxField;
+  } else {
+    // Text, textarea, password
+    newField = {
+      ...createBaseField(fieldName, fieldType, formattedLabel),
+      required: false
+    } as TextFieldType;
+  }
+  
+  // Add the field to the current section
+  // Since we don't know which section to add to, we need a way to determine that
+  // For example, add to the currently selected section or provide a section index
+  const sectionIndex = selectedItem?.type === 'section' 
+    ? selectedItem.index 
+    : (selectedItem?.type === 'field' ? selectedItem.sectionIndex : 0);
+  
+  if (sectionIndex !== undefined && sectionIndex < form.sections.length) {
+    setForm((prev) => {
+      const newSections = [...prev.sections];
+      newSections[sectionIndex].fields.push(newField);
+      return { ...prev, sections: newSections };
+    });
+  }
+};
 
   return (
     <DndContext 
@@ -1758,6 +1779,31 @@ const Playground: React.FC = () => {
       </DragOverlay>
     </DndContext>
   );
+};
+
+// For sample/default form data
+const defaultForm: Form = {
+  sections: [
+    {
+      "name": "User Details",
+      "fields": [
+        {
+          "name": "Name",
+          "type": "text",
+          "label": "Name",
+          "placeholder": "Enter text value...",
+          "required": false
+        } as TextFieldType,
+        {
+          "name": "LastName",
+          "type": "text",
+          "label": "Last Name",
+          "placeholder": "Enter text value...",
+          "required": false
+        } as TextFieldType
+      ]
+    }
+  ]
 };
 
 // TabPanel component definition
