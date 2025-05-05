@@ -1,0 +1,101 @@
+{
+    "sections": [
+        {
+            "name": "User Details",
+            "fields": [
+                {
+                    "name": "Name",
+                    "type": "text",
+                    "label": "Name",
+                    "placeholder": "Enter text value...",
+                    "required": false,
+                    "minLength": "",
+                    "maxLength": "",
+                    "pattern": ""
+                },
+                {
+                    "name": "LastName",
+                    "type": "text",
+                    "label": "Last Name",
+                    "placeholder": "Enter text value...",
+                    "required": false,
+                    "minLength": "",
+                    "maxLength": "",
+                    "pattern": ""
+                },
+                {
+                    "name": "number_1745729259175",
+                    "type": "number",
+                    "label": "number Field",
+                    "placeholder": "Enter number value...",
+                    "required": false,
+                    "min": "",
+                    "max": ""
+                }
+            ]
+        },
+        {
+            "name": "Section 2",
+            "fields": [
+                {
+                    "name": "Position",
+                    "type": "text",
+                    "label": "text Field",
+                    "placeholder": "Enter text value...",
+                    "required": false,
+                    "minLength": "",
+                    "maxLength": "",
+                    "pattern": ""
+                },
+                {
+                    "name": "checkbox_1745729292576",
+                    "type": "checkbox",
+                    "label": "checkbox Field",
+                    "placeholder": "Enter checkbox value...",
+                    "required": false
+                },
+                {
+                    "name": "Calculator",
+                    "type": "dropdown",
+                    "label": "Calculator",
+                    "placeholder": "Enter dropdown value...",
+                    "options": [
+                        "arth",
+                        "geo"
+                    ],
+                    "required": false
+                }
+            ]
+        },
+        {
+            "name": "Arth",
+            "fields": [
+                {
+                    "name": "text_1745729433534",
+                    "type": "text",
+                    "label": "text Field",
+                    "placeholder": "Enter text value..."
+                }
+            ],
+            "conditionField": "Calculator",
+            "conditionValue": "arth"
+        },
+        {
+            "name": "Geo",
+            "fields": [
+                {
+                    "name": "dropdown_1745729455310",
+                    "type": "dropdown",
+                    "label": "dropdown Field",
+                    "placeholder": "Enter dropdown value...",
+                    "options": [
+                        "Option 1",
+                        "Option 2"
+                    ]
+                }
+            ],
+            "conditionField": "Calculator",
+            "conditionValue": "geo"
+        }
+    ]
+}
