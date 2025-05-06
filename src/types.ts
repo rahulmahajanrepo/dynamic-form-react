@@ -81,11 +81,15 @@ export interface GridValue {
 }
 
 export interface Section {
-  name: string;
+  id: string; // Add unique ID for each section
+  name: string; // Display name (UI)
+  objectName: string; // Name used in data model
   fields: Field[];
   conditionField?: string;
   conditionValue?: string;
   isSubSection?: boolean;
+  nestedSections?: Section[]; // Support for nested sections
+  parentId?: string; // ID of parent section (null for top-level)
 }
 
 export interface Form {

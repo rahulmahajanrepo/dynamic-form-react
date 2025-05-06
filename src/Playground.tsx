@@ -50,6 +50,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import SaveIcon from '@mui/icons-material/Save';
+import AddIcon from '@mui/icons-material/Add';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -262,7 +263,7 @@ const ResizeHandle: React.FC = () => {
   );
 };
 
-// Create a SortableSection component (add this before the Playground component)
+// Create a SortableSection component (add this before the Playground component)// Update interface SortableSectionProps
 interface SortableSectionProps {
   section: Section;
   id: string;
@@ -272,9 +273,18 @@ interface SortableSectionProps {
   onDelete: (e: React.MouseEvent) => void;
   onMoveUp: (e: React.MouseEvent) => void;
   onMoveDown: (e: React.MouseEvent) => void;
+  onUpdateSection: (updatedSection: Section) => void;
+  onNestedSectionUp: (nestedIndex: number, e: React.MouseEvent) => void;
+  onNestedSectionDown: (nestedIndex: number, e: React.MouseEvent) => void;
+  onDeleteNestedSection: (nestedIndex: number, e: React.MouseEvent) => void;
   children: React.ReactNode;
-  activeDropSection: number | null;
+  activeDropSection: number | string | null; // Update to accept string
   activeField: {field: Field; id: string; sectionIndex: number} | null;
+  selectedItem: any; // The currently selected item
+  onNestedSectionSelect: (nestedIndex: number) => void; // Handler for nested section selection
+  getNestedFieldIds: (sectionIndex: number, nestedIndex: number) => string[];
+  onNestedFieldSelect: (nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
+  onRemoveNestedField: (nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
 }
 
 const SortableSection: React.FC<SortableSectionProps> = ({ 
@@ -288,7 +298,16 @@ const SortableSection: React.FC<SortableSectionProps> = ({
   onMoveDown,
   children,
   activeDropSection,
-  activeField
+  activeField,
+  onUpdateSection,
+  onNestedSectionUp,
+  onNestedSectionDown,
+  onDeleteNestedSection,
+  selectedItem,
+  onNestedSectionSelect,
+  getNestedFieldIds,
+  onNestedFieldSelect,
+  onRemoveNestedField
 }) => {
   const theme = useTheme();
   const {
@@ -305,6 +324,146 @@ const SortableSection: React.FC<SortableSectionProps> = ({
     transition,
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 1000 : 1,
+  };
+
+  const handleAddNestedSectionClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent section selection
+    
+    const newNestedSection: Section = {
+      id: `section_${Date.now()}`,
+      name: `Sub-section ${(section.nestedSections?.length || 0) + 1}`,
+      objectName: '',
+      fields: [],
+      isSubSection: true,
+      parentId: section.id,
+      nestedSections: []
+    };
+  
+    const updatedSection = {
+      ...section,
+      nestedSections: section.nestedSections ? 
+        [...section.nestedSections, newNestedSection] : 
+        [newNestedSection]
+    };
+    
+    onUpdateSection(updatedSection);
+  };
+
+  const renderNestedSections = () => {
+    if (!section.nestedSections || section.nestedSections.length === 0) {
+      return null;
+    }
+    
+    return (
+      <Box sx={{ ml: 3, mt: 1, pl: 2, borderLeft: '2px solid rgba(0,0,0,0.1)' }}>
+        {section.nestedSections.map((nestedSection, nestedIndex) => (
+          <Box 
+            key={nestedSection.id || `nested-section-${nestedIndex}`}
+            sx={{ 
+              mb: 1, 
+              p: 1, 
+              backgroundColor: '#f9f9f9',
+              borderRadius: '4px',
+              border: '1px solid #e0e0e0',
+              cursor: 'pointer',
+              // Highlight when selected
+              outline: isSelected && selectedItem?.type === 'nestedSection' && 
+                       selectedItem.nestedIndex === nestedIndex ? 
+                       `2px solid ${theme.palette.secondary.main}` : 'none'
+            }}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent parent section selection
+              onNestedSectionSelect(nestedIndex);
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle2">
+                {nestedSection.name || `Sub-section ${nestedIndex + 1}`}
+              </Typography>
+              <Box>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => onNestedSectionUp(nestedIndex, e)}
+                  disabled={nestedIndex === 0}
+                >
+                  <ArrowUpwardIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => onNestedSectionDown(nestedIndex, e)}
+                  disabled={section.nestedSections && nestedIndex === section.nestedSections.length - 1}
+                >
+                  <ArrowDownwardIcon fontSize="small" />
+                </IconButton>
+                <IconButton 
+                  size="small"
+                  color="error"
+                  onClick={(e) => onDeleteNestedSection(nestedIndex, e)}
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </Box>
+            
+            {/* Add a droppable area for fields within nested section */}
+            <DroppableArea 
+              id={`nested-${index}-${nestedIndex}`} 
+              isActive={typeof activeDropSection === 'string' && 
+              activeDropSection === `nested-${index}-${nestedIndex}`}
+            >
+              {nestedSection.fields.length === 0 ? (
+                <Typography 
+                  variant="body2" 
+                  color={(typeof activeDropSection === 'string' && 
+                    activeDropSection === `nested-${index}-${nestedIndex}`) 
+                    ? "primary" : "text.secondary"} 
+                  sx={{ 
+                    textAlign: 'center',
+                    p: 1,
+                    fontSize: '0.8rem',
+                    fontWeight: (typeof activeDropSection === 'string' && 
+                      activeDropSection === `nested-${index}-${nestedIndex}`) 
+                      ? 'medium' : 'normal',
+                    backgroundColor: (typeof activeDropSection === 'string' && 
+                        activeDropSection === `nested-${index}-${nestedIndex}`) 
+                        ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
+                    borderRadius: '4px'
+                  }}
+                >
+                  {(typeof activeDropSection === 'string' && 
+                    activeDropSection === `nested-${index}-${nestedIndex}`)
+                    ? "Drop field here" 
+                    : "Drag fields here"}
+                </Typography>
+              ) : (
+                <SortableContext 
+                  items={getNestedFieldIds(index, nestedIndex)} 
+                  strategy={verticalListSortingStrategy}
+                >
+                  {nestedSection.fields.map((field, fieldIndex) => (
+                    <SortableFieldItem
+                      key={`nested-field-${index}-${nestedIndex}-${fieldIndex}`}
+                      id={`nested-field-${index}-${nestedIndex}-${fieldIndex}`}
+                      field={field}
+                      sectionIndex={index}
+                      fieldIndex={fieldIndex}
+                      isSelected={
+                        selectedItem?.type === 'nestedField' && 
+                        selectedItem.sectionIndex === index && 
+                        selectedItem.nestedIndex === nestedIndex &&
+                        selectedItem.fieldIndex === fieldIndex
+                      }
+                      onSelect={(e) => onNestedFieldSelect(nestedIndex, fieldIndex, e)}
+                      onRemove={(e) => onRemoveNestedField(nestedIndex, fieldIndex, e)}
+                    />
+                  ))}
+                </SortableContext>
+              )}
+            </DroppableArea>
+          </Box>
+        ))}
+      </Box>
+    );
   };
 
   return (
@@ -411,6 +570,18 @@ const SortableSection: React.FC<SortableSectionProps> = ({
       </Box>
       
       {children}
+
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<AddIcon />}
+        onClick={handleAddNestedSectionClick}
+        sx={{ mt: 1, alignSelf: 'flex-start' }}
+      >
+        Add Nested Section
+      </Button>
+
+      {renderNestedSections()}
     </Paper>
   );
 };
@@ -421,13 +592,15 @@ const Playground: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<
     | { type: 'field'; sectionIndex: number; fieldIndex: number }
     | { type: 'section'; index: number }
+    | { type: 'nestedSection'; sectionIndex: number; nestedIndex: number }
+    | { type: 'nestedField'; sectionIndex: number; nestedIndex: number; fieldIndex: number }
     | null
   >(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [activeDropSection, setActiveDropSection] = useState<number | null>(null);
+  const [activeDropSection, setActiveDropSection] = useState<number | string | null>(null);
   const [activeField, setActiveField] = useState<{field: Field; id: string; sectionIndex: number} | null>(null);
-  const [dropIndicator, setDropIndicator] = useState<{sectionIndex: number; fieldIndex: number} | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{sectionIndex: number; fieldIndex: number; nestedIndex?: number} | null>(null);
   
   // State for delete section confirmation dialog
   const [deleteSectionDialog, setDeleteSectionDialog] = useState<{open: boolean, sectionIndex: number | null}>({
@@ -479,7 +652,16 @@ const Playground: React.FC = () => {
   const addSection = () => {
     setForm((prev) => ({
       ...prev,
-      sections: [...prev.sections, { name: `Section ${prev.sections.length + 1}`, fields: [] }],
+      sections: [
+        ...prev.sections, 
+        { 
+          id: `section_${Date.now()}`,
+          name: `Section ${prev.sections.length + 1}`, 
+          objectName: '',
+          fields: [],
+          nestedSections: []
+        }
+      ],
     }));
   };
 
@@ -521,81 +703,6 @@ const Playground: React.FC = () => {
       removeSection(deleteSectionDialog.sectionIndex);
     }
     handleCloseDeleteDialog();
-  };
-
-  const handleDropField = (sectionIndex: number, fieldType: Field['type'], position: number = -1) => {
-    console.log(`Dropping ${fieldType} into section ${sectionIndex} at position ${position}`);
-    let fieldName = `${fieldType}_${Date.now()}`;
-    let formattedLabel = formatNameToLabel(fieldType);
-    
-    let newField: Field;
-  
-    // Create the field based on type with proper type assertions
-    if (fieldType === 'grid') {
-      newField = {
-        name: fieldName,
-        type: fieldType,
-        label: 'Data Grid',
-        placeholder: `Enter ${fieldType} value...`,
-        required: false,
-        columns: [
-          { name: 'Item', type: 'text' },
-          { name: 'Quantity', type: 'number' }
-        ],
-        defaultRows: 1
-      } as GridField;
-    } else if (fieldType === 'dropdown' || fieldType === 'radio') {
-      newField = {
-        name: fieldName,
-        type: fieldType,
-        label: formattedLabel,
-        placeholder: `Enter ${fieldType} value...`,
-        required: false,
-        options: []
-      } as (typeof fieldType extends 'dropdown' ? DropdownField : RadioField);
-    } else if (fieldType === 'number') {
-      newField = {
-        name: fieldName,
-        type: fieldType,
-        label: formattedLabel,
-        placeholder: `Enter ${fieldType} value...`,
-        required: false
-      } as NumberField;
-    } else if (fieldType === 'checkbox') {
-      newField = {
-        name: fieldName,
-        type: fieldType,
-        label: formattedLabel,
-        placeholder: `Enter ${fieldType} value...`,
-        required: false
-      } as CheckboxField;
-    } else {
-      // Text, textarea, password
-      newField = {
-        name: fieldName,
-        type: fieldType as 'text' | 'textarea' | 'password',
-        label: formattedLabel,
-        placeholder: `Enter ${fieldType} value...`,
-        required: false
-      } as TextFieldType;
-    }
-    
-    // Add the field to the current section
-    setForm((prev) => {
-      const newSections = [...prev.sections];
-      if (position === -1 || position > newSections[sectionIndex].fields.length) {
-        // Add to the end
-        newSections[sectionIndex].fields = [...newSections[sectionIndex].fields, newField];
-      } else {
-        // Insert at specific position
-        newSections[sectionIndex].fields = [
-          ...newSections[sectionIndex].fields.slice(0, position),
-          newField,
-          ...newSections[sectionIndex].fields.slice(position)
-        ];
-      }
-      return { ...prev, sections: newSections };
-    });
   };
 
   const updateField = (sectionIndex: number, fieldIndex: number, updatedField: Field) => {
@@ -785,6 +892,20 @@ const Playground: React.FC = () => {
         }
       }
     }
+    if (overId.startsWith('nested-')) {
+      const parts = overId.split('-');
+      const sectionIndex = parseInt(parts[1], 10);
+      const nestedIndex = parseInt(parts[2], 10);
+      
+      if (!isNaN(sectionIndex) && !isNaN(nestedIndex)) {
+        setActiveDropSection(`nested-${sectionIndex}-${nestedIndex}`);
+        setDropIndicator({ 
+          sectionIndex,
+          nestedIndex,
+          fieldIndex: form.sections[sectionIndex]?.nestedSections?.[nestedIndex]?.fields.length || 0 
+        });
+      }
+    }
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -810,13 +931,32 @@ const Playground: React.FC = () => {
       
       if (finalDropIndicator) {
         // Use the drop indicator if available
-        handleDropField(finalDropIndicator.sectionIndex, fieldType, finalDropIndicator.fieldIndex);
+        handleDropField(
+          finalDropIndicator.sectionIndex, 
+          fieldType, 
+          finalDropIndicator.fieldIndex,
+          finalDropIndicator.nestedIndex  // Add this line to pass the nestedIndex
+        );
         return;
       } else if (overId.startsWith('section-')) {
         // Fallback to dropping at the end of the section
         const sectionIndex = parseInt(overId.split('-')[1], 10);
         if (!isNaN(sectionIndex)) {
           handleDropField(sectionIndex, fieldType);
+        }
+      } else if (overId.startsWith('nested-')) {
+        // Add this case for direct drops on nested sections without indicator
+        const parts = overId.split('-');
+        const sectionIndex = parseInt(parts[1], 10);
+        const nestedIndex = parseInt(parts[2], 10);
+        
+        if (!isNaN(sectionIndex) && !isNaN(nestedIndex)) {
+          handleDropField(
+            sectionIndex,
+            fieldType,
+            -1, // Add at the end
+            nestedIndex
+          );
         }
       }
       return;
@@ -954,9 +1094,11 @@ const Playground: React.FC = () => {
   const sampleConfig: Form = {
     "sections": [
       {
+        "id": `section_${Date.now()}`, // Add unique ID
         "name": "User Details",
-        "fields": [
-        ]
+        "objectName": "userDetails", // Add object name
+        "fields": [],
+        "nestedSections": [] // Add empty nestedSections array
       }
     ]
   };
@@ -1163,6 +1305,250 @@ const handleAddField = (fieldType: Field['type']) => {
       newSections[sectionIndex].fields.push(newField);
       return { ...prev, sections: newSections };
     });
+  }
+};
+
+  const handleNestedSectionUp = (sectionIndex: number, nestedIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (nestedIndex === 0) return; // Already at the top
+    
+    setForm(prev => {
+      const newSections = [...prev.sections];
+      const section = { ...newSections[sectionIndex] };
+      
+      if (section.nestedSections && section.nestedSections.length > 1) {
+        const newNestedSections = [...section.nestedSections];
+        const temp = newNestedSections[nestedIndex];
+        newNestedSections[nestedIndex] = newNestedSections[nestedIndex - 1];
+        newNestedSections[nestedIndex - 1] = temp;
+        
+        section.nestedSections = newNestedSections;
+        newSections[sectionIndex] = section;
+      }
+      
+      return { ...prev, sections: newSections };
+    });
+    
+    // Update selection if needed
+    if (selectedItem?.type === 'nestedSection' && 
+        selectedItem.sectionIndex === sectionIndex && 
+        selectedItem.nestedIndex === nestedIndex) {
+      setSelectedItem({
+        ...selectedItem,
+        nestedIndex: nestedIndex - 1
+      });
+    }
+  };
+  
+  const handleNestedSectionDown = (sectionIndex: number, nestedIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    setForm(prev => {
+      const newSections = [...prev.sections];
+      const section = { ...newSections[sectionIndex] };
+      
+      if (section.nestedSections && nestedIndex < section.nestedSections.length - 1) {
+        const newNestedSections = [...section.nestedSections];
+        const temp = newNestedSections[nestedIndex];
+        newNestedSections[nestedIndex] = newNestedSections[nestedIndex + 1];
+        newNestedSections[nestedIndex + 1] = temp;
+        
+        section.nestedSections = newNestedSections;
+        newSections[sectionIndex] = section;
+      }
+      
+      return { ...prev, sections: newSections };
+    });
+    
+    // Update selection if needed
+    if (selectedItem?.type === 'nestedSection' && 
+        selectedItem.sectionIndex === sectionIndex && 
+        selectedItem.nestedIndex === nestedIndex) {
+      setSelectedItem({
+        ...selectedItem,
+        nestedIndex: nestedIndex + 1
+      });
+    }
+  };
+  
+  const handleDeleteNestedSection = (sectionIndex: number, nestedIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    setForm(prev => {
+      const newSections = [...prev.sections];
+      const section = { ...newSections[sectionIndex] };
+      
+      if (section.nestedSections) {
+        section.nestedSections = section.nestedSections.filter((_, i) => i !== nestedIndex);
+        newSections[sectionIndex] = section;
+      }
+      
+      return { ...prev, sections: newSections };
+    });
+    
+    // Clear selection if the deleted section was selected
+    if (selectedItem?.type === 'nestedSection' && 
+        selectedItem.sectionIndex === sectionIndex && 
+        selectedItem.nestedIndex === nestedIndex) {
+      setSelectedItem(null);
+    }
+  };
+
+const handleDropField = (sectionIndex: number, fieldType: Field['type'], position: number = -1, nestedIndex?: number) => {
+  const fieldName = generateFieldName(fieldType);
+  const formattedLabel = formatNameToLabel(fieldName);
+  
+  let newField: Field;
+  
+  // Create the field based on type with proper type assertions
+  if (fieldType === 'grid') {
+    newField = {
+      name: fieldName,
+      type: fieldType,
+      label: 'Data Grid',
+      placeholder: `Enter ${fieldType} value...`,
+      required: false,
+      columns: [
+        { name: 'Item', type: 'text' },
+        { name: 'Quantity', type: 'number' }
+      ],
+      defaultRows: 1
+    } as GridField;
+  } else if (fieldType === 'dropdown' || fieldType === 'radio') {
+    newField = {
+      name: fieldName,
+      type: fieldType,
+      label: formattedLabel,
+      placeholder: `Enter ${fieldType} value...`,
+      required: false,
+      options: []
+    } as (typeof fieldType extends 'dropdown' ? DropdownField : RadioField);
+  } else if (fieldType === 'number') {
+    newField = {
+      name: fieldName,
+      type: fieldType,
+      label: formattedLabel,
+      placeholder: `Enter ${fieldType} value...`,
+      required: false
+    } as NumberField;
+  } else if (fieldType === 'checkbox') {
+    newField = {
+      name: fieldName,
+      type: fieldType,
+      label: formattedLabel,
+      placeholder: `Enter ${fieldType} value...`,
+      required: false
+    } as CheckboxField;
+  } else {
+    // Text, textarea, password
+    newField = {
+      name: fieldName,
+      type: fieldType as 'text' | 'textarea' | 'password',
+      label: formattedLabel,
+      placeholder: `Enter ${fieldType} value...`,
+      required: false
+    } as TextFieldType;
+  }
+  
+  // Add the field to the current section
+  setForm((prev) => {
+    const newSections = [...prev.sections];
+    
+    // Add to a nested section
+    if (nestedIndex !== undefined) {
+      if (newSections[sectionIndex]?.nestedSections?.[nestedIndex]) {
+        const nestedSection = {...newSections[sectionIndex].nestedSections![nestedIndex]};
+        
+        if (position === -1 || position > nestedSection.fields.length) {
+          // Add to the end
+          nestedSection.fields = [...nestedSection.fields, newField];
+        } else {
+          // Insert at specific position
+          nestedSection.fields = [
+            ...nestedSection.fields.slice(0, position),
+            newField,
+            ...nestedSection.fields.slice(position)
+          ];
+        }
+        
+        const newNestedSections = [...newSections[sectionIndex].nestedSections!];
+        newNestedSections[nestedIndex] = nestedSection;
+        newSections[sectionIndex] = {
+          ...newSections[sectionIndex],
+          nestedSections: newNestedSections
+        };
+      }
+    }
+    // Add to main section (existing code)
+    else {
+      if (position === -1 || position > newSections[sectionIndex].fields.length) {
+        // Add to the end
+        newSections[sectionIndex].fields = [...newSections[sectionIndex].fields, newField];
+      } else {
+        // Insert at specific position
+        newSections[sectionIndex].fields = [
+          ...newSections[sectionIndex].fields.slice(0, position),
+          newField,
+          ...newSections[sectionIndex].fields.slice(position)
+        ];
+      }
+    }
+    
+    return { ...prev, sections: newSections };
+  });
+};
+
+const handleNestedSectionSelect = (sectionIndex: number, nestedIndex: number) => {
+  setSelectedItem({ 
+    type: 'nestedSection', 
+    sectionIndex, 
+    nestedIndex 
+  });
+};
+
+const getNestedFieldIds = (sectionIndex: number, nestedIndex: number) => {
+  return form.sections[sectionIndex].nestedSections?.[nestedIndex]?.fields.map((_, fieldIndex) => 
+    `nested-field-${sectionIndex}-${nestedIndex}-${fieldIndex}`
+  ) || [];
+};
+
+const handleNestedFieldSelect = (sectionIndex: number, nestedIndex: number, fieldIndex: number, event: React.MouseEvent) => {
+  event.stopPropagation(); // Prevent section or nested section selection
+  setSelectedItem({ 
+    type: 'nestedField', 
+    sectionIndex, 
+    nestedIndex,
+    fieldIndex 
+  });
+};
+
+const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex: number, event: React.MouseEvent) => {
+  event.stopPropagation(); // Prevent selection
+  
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    if (newSections[sectionIndex]?.nestedSections?.[nestedIndex]) {
+      const newNestedSections = [...newSections[sectionIndex].nestedSections!];
+      const newNestedSection = {...newNestedSections[nestedIndex]};
+      
+      // Remove the field
+      newNestedSection.fields = newNestedSection.fields.filter((_, idx) => idx !== fieldIndex);
+      newNestedSections[nestedIndex] = newNestedSection;
+      newSections[sectionIndex] = {
+        ...newSections[sectionIndex],
+        nestedSections: newNestedSections
+      };
+    }
+    return { ...prev, sections: newSections };
+  });
+  
+  // Clear selection if needed
+  if (selectedItem?.type === 'nestedField' && 
+      selectedItem.sectionIndex === sectionIndex && 
+      selectedItem.nestedIndex === nestedIndex &&
+      selectedItem.fieldIndex === fieldIndex) {
+    setSelectedItem(null);
   }
 };
 
@@ -1378,6 +1764,19 @@ const handleAddField = (fieldType: Field['type']) => {
                               onMoveDown={(e) => moveSectionDown(sectionIndex, e)}
                               activeDropSection={activeDropSection}
                               activeField={activeField}
+                              onUpdateSection={(updatedSection) => updateSection(sectionIndex, updatedSection)}
+                              onNestedSectionUp={(nestedIndex, e) => handleNestedSectionUp(sectionIndex, nestedIndex, e)}
+                              onNestedSectionDown={(nestedIndex, e) => handleNestedSectionDown(sectionIndex, nestedIndex, e)}
+                              onDeleteNestedSection={(nestedIndex, e) => handleDeleteNestedSection(sectionIndex, nestedIndex, e)}
+                              selectedItem={selectedItem}
+                              onNestedSectionSelect={(nestedIndex) => handleNestedSectionSelect(sectionIndex, nestedIndex)}
+                              getNestedFieldIds={(sectionIndex, nestedIndex) => getNestedFieldIds(sectionIndex, nestedIndex)}
+                              onNestedFieldSelect={(nestedIndex, fieldIndex, e) => 
+                                handleNestedFieldSelect(sectionIndex, nestedIndex, fieldIndex, e)
+                              }
+                              onRemoveNestedField={(nestedIndex, fieldIndex, e) => 
+                                removeNestedField(sectionIndex, nestedIndex, fieldIndex, e)
+                              }
                             >
                               {/* Sortable droppable area for each section */}
                               <DroppableArea 
@@ -1392,8 +1791,6 @@ const handleAddField = (fieldType: Field['type']) => {
                                       textAlign: 'center',
                                       p: 2,
                                       fontWeight: activeDropSection === sectionIndex ? 'medium' : 'normal',
-                                      backgroundColor: activeDropSection === sectionIndex ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
-                                      borderRadius: '4px'
                                     }}
                                   >
                                     {activeDropSection === sectionIndex 
@@ -1564,6 +1961,52 @@ const handleAddField = (fieldType: Field['type']) => {
                         />
                       );
                     })()}
+                    {selectedItem && selectedItem.type === 'nestedSection' && (() => {
+                      const nestedSectionItem = selectedItem as { 
+                        type: 'nestedSection'; 
+                        sectionIndex: number; 
+                        nestedIndex: number 
+                      };
+                      
+                      const nestedSection = form.sections[nestedSectionItem.sectionIndex]?.nestedSections?.[nestedSectionItem.nestedIndex];
+                      
+                      if (!nestedSection) {
+                        return (
+                          <Typography color="error">
+                            Error: Nested section not found
+                          </Typography>
+                        );
+                      }
+                      
+                      return (
+                        <SectionSetup
+                          key={`nested-section-${nestedSectionItem.sectionIndex}-${nestedSectionItem.nestedIndex}`}
+                          section={nestedSection}
+                          onUpdate={(updatedSection: Section) => {
+                            setForm(prev => {
+                              const newSections = [...prev.sections];
+                              if (newSections[nestedSectionItem.sectionIndex]?.nestedSections) {
+                                const newNestedSections = [...newSections[nestedSectionItem.sectionIndex].nestedSections!];
+                                newNestedSections[nestedSectionItem.nestedIndex] = updatedSection;
+                                newSections[nestedSectionItem.sectionIndex] = {
+                                  ...newSections[nestedSectionItem.sectionIndex],
+                                  nestedSections: newNestedSections
+                                };
+                              }
+                              return { ...prev, sections: newSections };
+                            });
+                          }}
+                          availableFields={[
+                            // Fields from parent section
+                            ...form.sections[nestedSectionItem.sectionIndex].fields.map(f => f.name),
+                            // Fields from previous sections
+                            ...form.sections
+                              .slice(0, nestedSectionItem.sectionIndex)
+                              .flatMap((s) => s.fields.map((f) => f.name))
+                          ]}
+                        />
+                      );
+                    })()}
                   </Box>
                 </Paper>
               </Panel>
@@ -1607,7 +2050,62 @@ const handleAddField = (fieldType: Field['type']) => {
                     </Typography>
                   </Box>
                 ) : (
-                  <FormRenderer form={form} onSubmit={(data) => console.log('Submit:', data, form)} />
+                  // Update the FormRenderer usage in the Preview Tab
+<FormRenderer 
+  form={form} 
+  onSubmit={(data) => {
+    // Define the type for structuredData to allow dynamic properties
+    const structuredData: { [key: string]: any } = {};
+    
+    form.sections.forEach(section => {
+      if (section.objectName) {
+        structuredData[section.objectName] = {};
+        
+        // Add fields from this section
+        section.fields.forEach(field => {
+          if (data[field.name] !== undefined) {
+            structuredData[section.objectName][field.name] = data[field.name];
+          }
+        });
+        
+        // Process nested sections if they exist
+        if (section.nestedSections && section.nestedSections.length > 0) {
+          section.nestedSections.forEach(nestedSection => {
+            if (nestedSection.objectName) {
+              structuredData[section.objectName][nestedSection.objectName] = {};
+              
+              nestedSection.fields.forEach(field => {
+                if (data[field.name] !== undefined) {
+                  structuredData[section.objectName][nestedSection.objectName][field.name] = 
+                    data[field.name];
+                }
+              });
+            } else {
+              // If nested section has no objectName, add fields directly to parent
+              nestedSection.fields.forEach(field => {
+                if (data[field.name] !== undefined) {
+                  structuredData[section.objectName][field.name] = data[field.name];
+                }
+              });
+            }
+          });
+        }
+      } else {
+        // For sections without objectName, add fields to root level
+        section.fields.forEach(field => {
+          if (data[field.name] !== undefined) {
+            structuredData[field.name] = data[field.name];
+          }
+        });
+      }
+    });
+    
+    console.log('Original form data:', data);
+    console.log('Structured form data:', structuredData);
+    
+    return structuredData;
+  }} 
+/>
                 )}
               </Paper>
             </Box>
@@ -1785,7 +2283,10 @@ const handleAddField = (fieldType: Field['type']) => {
 const defaultForm: Form = {
   sections: [
     {
+      "id": `section_${Date.now()}`, // Add unique ID
       "name": "User Details",
+      "objectName": "userDetails", // Add object name
+      "nestedSections": [], // Add empty nestedSections array
       "fields": [
         {
           "name": "Name",
