@@ -20,16 +20,40 @@ import AddIcon from '@mui/icons-material/Add';
 import { Section } from './types';
 import { formatNameToLabel } from './utils';
 
+// Update the SectionSetupProps interface to include all field metadata
 interface SectionSetupProps {
   section: Section;
   onUpdate: (updatedSection: Section) => void;
-  availableFields: string[];
-  allSections?: Section[]; // Make this optional
+  availableFields: Array<{ 
+    name: string; 
+    label?: string;
+    parentSection?: string;
+    nestedSection?: string;
+    nestedIndex?: number;
+  }>;
+  allSections?: Section[]; 
 }
 
+// Add a helper function to convert section name to a valid object name (camelCase without special chars)
+const formatLabelToName = (label: string): string => {
+  if (!label) return '';
+  
+  // Replace spaces and special chars with underscores, then remove any non-alphanumeric chars
+  const sanitized = label
+    .replace(/[\s-]+/g, '_') // Replace spaces and hyphens with underscores
+    .replace(/[^a-zA-Z0-9_]/g, '') // Remove all non-alphanumeric chars except underscores
+    .replace(/_{2,}/g, '_'); // Replace multiple consecutive underscores with a single one
+  
+  // Convert to camelCase (first char lowercase)
+  return sanitized.charAt(0).toLowerCase() + sanitized.slice(1);
+};
+
 const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availableFields, allSections = [] }) => {
+  // Update the initial state in the SectionSetup component
   const [name, setName] = useState(section.name);
-  const [objectName, setObjectName] = useState(section.objectName || '');
+  const [objectName, setObjectName] = useState(
+    section.objectName || formatLabelToName(section.name || '')
+  );
   const [objectNameManuallyEdited, setObjectNameManuallyEdited] = useState(!!section.objectName);
   const [conditionField, setConditionField] = useState(section.conditionField || '');
   const [conditionValue, setConditionValue] = useState(section.conditionValue || '');
@@ -50,46 +74,69 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
     return () => clearTimeout(timer);
   }, [section.id]);
 
-  // Filter available fields to only allow "forward" dependencies
-  const getAvailableConditionFields = () => {
-    if (!section.parentId) {
-      // For top-level sections, check if the field's section comes before this one
-      return availableFields.filter(fieldName => {
-        // Find which section this field belongs to
-        for (const s of allSections) {
-          const fieldExists = s.fields.some(f => f.name === fieldName);
-          if (fieldExists) {
-            // Check if this section comes before the current section
-            const sectionIndex = allSections.findIndex(sec => sec.id === s.id);
-            const currentSectionIndex = allSections.findIndex(sec => sec.id === section.id);
-            return sectionIndex < currentSectionIndex;
-          }
-        }
-        return false;
-      });
-    } else {
-      // For nested sections, only allow fields from the parent section
-      const parentSection = allSections.find(s => s.id === section.parentId);
-      return parentSection?.fields.map(f => f.name) || [];
-    }
-  };
+  // Add this useEffect to update state when the section prop changes
+  useEffect(() => {
+    // Update all state variables when section changes
+    setName(section.name || '');
+    setObjectName(section.objectName || formatLabelToName(section.name || ''));
+    setConditionField(section.conditionField || '');
+    setConditionValue(section.conditionValue || '');
+    setIsSubSection(section.isSubSection || false);
+    setObjectNameManuallyEdited(!!section.objectName);
+    
+    // Reset validation error
+    setValidationError(null);
+  }, [section]); // Dependency on section means this will run whenever section changes
 
-  const handleObjectNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setObjectName(value);
-    setObjectNameManuallyEdited(true);
-    onUpdate({ 
-      ...section, 
-      objectName: value,
-      // If section name is empty or was auto-generated, update it too
-      name: name === '' ? formatNameToLabel(value) : name
+  // Update the getAvailableConditionFields function to show hierarchy
+  const getAvailableConditionFields = () => {
+    // If no availableFields were provided, return an empty array
+    if (!availableFields || !Array.isArray(availableFields)) {
+      console.warn('No available fields were provided to SectionSetup');
+      return [];
+    }
+
+    // Transform the availableFields to include display paths
+    return availableFields.map(field => {
+      let displayPath = '';
+      
+      // If it's from a nested section, show full path
+      if (field.nestedSection) {
+        displayPath = `${field.parentSection} → ${field.nestedSection} → ${field.label || field.name}`;
+      }
+      // If it's from a parent section
+      else if (field.parentSection) {
+        displayPath = `${field.parentSection} → ${field.label || field.name}`;
+      }
+      // Fallback if structure is missing
+      else {
+        displayPath = field.label || field.name;
+      }
+      
+      return {
+        name: field.name,
+        displayPath
+      };
     });
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setName(value);
-    onUpdate({ ...section, name: value });
+    
+    // If object name is empty or hasn't been manually edited, update it automatically
+    if (!objectName || !objectNameManuallyEdited) {
+      const newObjectName = formatLabelToName(value);
+      setObjectName(newObjectName);
+      onUpdate({ 
+        ...section, 
+        name: value,
+        objectName: newObjectName 
+      });
+    } else {
+      // Otherwise just update the name
+      onUpdate({ ...section, name: value });
+    }
   };
 
   const handleConditionFieldChange = (event: SelectChangeEvent) => {
@@ -111,10 +158,11 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
   };
 
   const handleAddNestedSection = () => {
+    const sectionName = `Sub-section ${(section.nestedSections?.length || 0) + 1}`;
     const newNestedSection: Section = {
       id: `section_${Date.now()}`,
-      name: `Sub-section ${(section.nestedSections?.length || 0) + 1}`,
-      objectName: '',
+      name: sectionName,
+      objectName: formatLabelToName(sectionName), // Auto-populate object name
       fields: [],
       isSubSection: true,
       parentId: section.id,
@@ -224,8 +272,8 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
         >
           <MenuItem value="">None</MenuItem>
           {getAvailableConditionFields().map((field) => (
-            <MenuItem key={field} value={field}>
-              {field}
+            <MenuItem key={field.name} value={field.name}>
+              {field.displayPath}
             </MenuItem>
           ))}
         </Select>
@@ -251,37 +299,41 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
         />
       )} {/* Add the missing curly brace here */}
 
-      <Divider sx={{ my: 1 }} />
-      
-      <Typography variant="subtitle2" gutterBottom>
-        Nested Sections
-      </Typography>
-      
-      {section.nestedSections && section.nestedSections.length > 0 ? (
-        <Box sx={{ ml: 2, pl: 1, borderLeft: '2px solid #e0e0e0' }}>
-          {section.nestedSections.map((nestedSection, index) => (
-            <Box key={nestedSection.id} sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                {index + 1}. {nestedSection.name || 'Unnamed Section'}
-              </Typography>
+      {!section.parentId && !isSubSection && (
+        <>
+          <Divider sx={{ my: 1 }} />
+          
+          <Typography variant="subtitle2" gutterBottom>
+            Nested Sections
+          </Typography>
+          
+          {section.nestedSections && section.nestedSections.length > 0 ? (
+            <Box sx={{ ml: 2, pl: 1, borderLeft: '2px solid #e0e0e0' }}>
+              {section.nestedSections.map((nestedSection, index) => (
+                <Box key={nestedSection.id} sx={{ mb: 1 }}>
+                  <Typography variant="body2">
+                    {index + 1}. {nestedSection.name || 'Unnamed Section'}
+                  </Typography>
+                </Box>
+              ))}
             </Box>
-          ))}
-        </Box>
-      ) : (
-        <Typography variant="body2" color="text.secondary">
-          No nested sections
-        </Typography>
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No nested sections
+            </Typography>
+          )}
+          
+          <Button
+            startIcon={<AddIcon />}
+            variant="outlined"
+            size="small"
+            onClick={handleAddNestedSection}
+            sx={{ alignSelf: 'flex-start', mt: 1 }}
+          >
+            Add Nested Section
+          </Button>
+        </>
       )}
-      
-      <Button
-        startIcon={<AddIcon />}
-        variant="outlined"
-        size="small"
-        onClick={handleAddNestedSection}
-        sx={{ alignSelf: 'flex-start', mt: 1 }}
-      >
-        Add Nested Section
-      </Button>
     </Box>
   );
 };

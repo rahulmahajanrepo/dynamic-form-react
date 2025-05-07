@@ -665,6 +665,86 @@ const Playground: React.FC = () => {
     }));
   };
 
+  // Add these utility functions inside the component
+  const getAvailableFieldsForSection = (sectionIndex: number) => {
+    const allFields: Array<{ 
+      name: string; 
+      label?: string;
+      parentSection?: string;
+      nestedSection?: string;
+      nestedIndex?: number;
+    }> = [];
+    
+    // Process all sections before this one
+    for (let i = 0; i < sectionIndex; i++) {
+      const section = form.sections[i];
+      if (!section) continue;
+      
+      // Add main section fields
+      allFields.push(...section.fields.map((f: Field) => ({ 
+        name: f.name, 
+        label: f.label,
+        parentSection: section.name
+      })));
+      
+      // Add nested sections' fields
+      if (section.nestedSections && section.nestedSections.length > 0) {
+        section.nestedSections.forEach((nestedSection: Section, nestedIndex: number) => {
+          allFields.push(...nestedSection.fields.map((f: Field) => ({ 
+            name: f.name, 
+            label: f.label,
+            parentSection: section.name,
+            nestedSection: nestedSection.name,
+            nestedIndex: nestedIndex
+          })));
+        });
+      }
+    }
+    
+    return allFields;
+  };
+
+  const getAvailableFieldsForNestedSection = (sectionIndex: number, nestedIndex: number) => {
+    const allFields: Array<{ 
+      name: string; 
+      label?: string;
+      parentSection?: string;
+      nestedSection?: string;
+      nestedIndex?: number;
+    }> = [];
+    
+    const parentSection = form.sections[sectionIndex];
+    if (!parentSection) return allFields;
+    
+    // 1. Add fields from the parent section
+    allFields.push(...parentSection.fields.map((f: Field) => ({ 
+      name: f.name, 
+      label: f.label,
+      parentSection: parentSection.name
+    })));
+    
+    // 2. Add fields from previous nested sections in the same parent
+    if (parentSection.nestedSections) {
+      for (let i = 0; i < nestedIndex; i++) {
+        const prevNestedSection = parentSection.nestedSections[i];
+        if (!prevNestedSection) continue;
+        
+        allFields.push(...prevNestedSection.fields.map((f: Field) => ({ 
+          name: f.name, 
+          label: f.label,
+          parentSection: parentSection.name,
+          nestedSection: prevNestedSection.name,
+          nestedIndex: i
+        })));
+      }
+    }
+    
+    // 3. Add fields from all previous sections (including their nested sections)
+    allFields.push(...getAvailableFieldsForSection(sectionIndex));
+    
+    return allFields;
+  };
+
   const removeSection = (sectionIndex: number) => {
     setForm((prev) => {
       const newSections = [...prev.sections];
@@ -1952,12 +2032,10 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
                       const sectionItem = selectedItem as { type: 'section'; index: number };
                       return (
                         <SectionSetup
-                          key={`section-${sectionItem.index}`}
                           section={form.sections[sectionItem.index]}
                           onUpdate={(updatedSection: Section) => updateSection(sectionItem.index, updatedSection)}
-                          availableFields={form.sections
-                            .slice(0, sectionItem.index)
-                            .flatMap((s) => s.fields.map((f) => f.name))}
+                          availableFields={getAvailableFieldsForSection(sectionItem.index)}
+                          allSections={form.sections}
                         />
                       );
                     })()}
@@ -1981,7 +2059,10 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
                       return (
                         <SectionSetup
                           key={`nested-section-${nestedSectionItem.sectionIndex}-${nestedSectionItem.nestedIndex}`}
-                          section={nestedSection}
+                          section={
+                            form.sections[nestedSectionItem.sectionIndex]
+                              .nestedSections![nestedSectionItem.nestedIndex]
+                          }
                           onUpdate={(updatedSection: Section) => {
                             setForm(prev => {
                               const newSections = [...prev.sections];
@@ -1996,14 +2077,51 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
                               return { ...prev, sections: newSections };
                             });
                           }}
-                          availableFields={[
-                            // Fields from parent section
-                            ...form.sections[nestedSectionItem.sectionIndex].fields.map(f => f.name),
-                            // Fields from previous sections
-                            ...form.sections
-                              .slice(0, nestedSectionItem.sectionIndex)
-                              .flatMap((s) => s.fields.map((f) => f.name))
-                          ]}
+                          availableFields={getAvailableFieldsForNestedSection(nestedSectionItem.sectionIndex, nestedSectionItem.nestedIndex)}
+                          allSections={form.sections}
+                        />
+                      );
+                    })()}
+                    {selectedItem && selectedItem.type === 'nestedField' && (() => {
+                      const nestedFieldItem = selectedItem as {
+                        type: 'nestedField';
+                        sectionIndex: number;
+                        nestedIndex: number;
+                        fieldIndex: number;
+                      };
+                      
+                      const field = form.sections[nestedFieldItem.sectionIndex]
+                        ?.nestedSections?.[nestedFieldItem.nestedIndex]
+                        ?.fields[nestedFieldItem.fieldIndex];
+                      
+                      if (!field) {
+                        return (
+                          <Typography color="error">
+                            Error: Field not found
+                          </Typography>
+                        );
+                      }
+                      
+                      return (
+                        <FieldSetup
+                          key={`nested-field-${nestedFieldItem.sectionIndex}-${nestedFieldItem.nestedIndex}-${nestedFieldItem.fieldIndex}`}
+                          field={field}
+                          onUpdate={(updatedField) => {
+                            setForm(prev => {
+                              const newSections = [...prev.sections];
+                              if (newSections[nestedFieldItem.sectionIndex]?.nestedSections?.[nestedFieldItem.nestedIndex]?.fields) {
+                                // Create a copy of the nested fields array
+                                const newNestedFields = [
+                                  ...newSections[nestedFieldItem.sectionIndex].nestedSections![nestedFieldItem.nestedIndex].fields
+                                ];
+                                // Update the specific field
+                                newNestedFields[nestedFieldItem.fieldIndex] = updatedField;
+                                // Update the nested section's fields
+                                newSections[nestedFieldItem.sectionIndex].nestedSections![nestedFieldItem.nestedIndex].fields = newNestedFields;
+                              }
+                              return { ...prev, sections: newSections };
+                            });
+                          }}
                         />
                       );
                     })()}

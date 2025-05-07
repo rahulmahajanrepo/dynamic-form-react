@@ -29,6 +29,13 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit }) => {
     // Check if the condition field has a value in our form data
     const fieldValue = formValues[section.conditionField];
     
+    // Add debug output
+    console.log(`Checking visibility for section ${section.name}:`, {
+      conditionField: section.conditionField,
+      conditionValue: section.conditionValue,
+      currentFieldValue: fieldValue,
+    });
+    
     // Compare the field value with the condition value
     // For string comparison, use exact match
     if (typeof fieldValue === 'string' && typeof section.conditionValue === 'string') {
@@ -134,36 +141,65 @@ const handleChange = (name: string, value: any) => {
     return error === '';
   };
   
-  // Find a field by name across all sections
-  const findFieldByName = (name: string): Field | undefined => {
-    for (const section of form.sections) {
+  // Update the findFieldByName function to search in nested sections too
+const findFieldByName = (name: string): Field | undefined => {
+  // Helper to search through an array of sections
+  const searchSections = (sections: Section[]): Field | undefined => {
+    for (const section of sections) {
+      // Check fields in this section
       const field = section.fields.find(f => f.name === name);
       if (field) return field;
+      
+      // Check fields in nested sections
+      if (section.nestedSections && section.nestedSections.length > 0) {
+        const nestedField = searchSections(section.nestedSections);
+        if (nestedField) return nestedField;
+      }
     }
     return undefined;
   };
   
-  // Validate all fields
-  const validateForm = () => {
-    let isValid = true;
-    const newErrors: Record<string, string> = {};
-    const newTouched: Record<string, boolean> = {...touched};
-    
-    // Only validate fields in visible sections
-    form.sections.forEach(section => {
-      section.fields.forEach(field => {
-        newTouched[field.name] = true;
-        if (!validateField(field.name, formValues[field.name])) {
-          isValid = false;
-          newErrors[field.name] = errors[field.name] || 'This field is invalid';
-        }
-      });
+  return searchSections(form.sections);
+};
+  
+  // Update validateForm to handle nested sections too
+const validateForm = () => {
+  let isValid = true;
+  const newErrors: Record<string, string> = {};
+  const newTouched: Record<string, boolean> = {...touched};
+  
+  // Helper to process fields in a section and its nested sections
+  const processFieldsInSection = (section: Section) => {
+    // Process fields in this section
+    section.fields.forEach(field => {
+      newTouched[field.name] = true;
+      if (!validateField(field.name, formValues[field.name])) {
+        isValid = false;
+        newErrors[field.name] = errors[field.name] || 'This field is invalid';
+      }
     });
     
-    setTouched(newTouched);
-    setErrors(newErrors);
-    return isValid;
+    // Process fields in nested sections
+    if (section.nestedSections && section.nestedSections.length > 0) {
+      section.nestedSections.forEach(nestedSection => {
+        if (isSectionVisible(nestedSection)) {
+          processFieldsInSection(nestedSection);
+        }
+      });
+    }
   };
+  
+  // Process all sections
+  form.sections.forEach(section => {
+    if (isSectionVisible(section)) {
+      processFieldsInSection(section);
+    }
+  });
+  
+  setTouched(newTouched);
+  setErrors(newErrors);
+  return isValid;
+};
   
   // Process the form values into a nested object structure
   const processFormValues = () => {
@@ -228,14 +264,11 @@ const handleChange = (name: string, value: any) => {
       return; // Don't submit if validation fails
     }
     
-    const formData: Record<string, any> = { ...formValues };
+    // Process the form values into the nested structure
+    const processedData = processFormValues();
     
-    // Add grid values directly
-    Object.entries(gridValues).forEach(([key, value]) => {
-      formData[key] = value;
-    });
-    
-    onSubmit(formData);
+    // Submit the processed data, not just the flat form values
+    onSubmit(processedData);
   };
 
   // First, move the helper function to render section fields above the return
