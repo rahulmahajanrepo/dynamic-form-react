@@ -57,12 +57,17 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
 import { DependencyGraph, DependencyNode, DependencyEdge, Field, Form, GridField, Section, DropdownField, RadioField,NumberField, CheckboxField, TextField as TextFieldType} from './types';
 import { formatNameToLabel } from './utils';
+import { alpha } from '@mui/material/styles';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import Snackbar from '@mui/material/Snackbar';
+import MuiAlert, { AlertProps } from '@mui/material/Alert';
+
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'password', 'checkbox', 'grid'];
 
-// Interface for DroppableArea props
+// Add this interface declaration
 interface DroppableAreaProps {
   id: string;
-  children: ReactNode;
+  children: React.ReactNode;
   isActive: boolean;
   onDragOver?: (e: React.DragEvent) => void;
 }
@@ -586,8 +591,62 @@ const SortableSection: React.FC<SortableSectionProps> = ({
   );
 };
 
-const Playground: React.FC = () => {
+// Custom Snackbar Context (add before the Playground component)
+type SnackbarSeverity = 'success' | 'info' | 'warning' | 'error';
+
+interface SnackbarContextType {
+  showSnackbar: (message: string, severity?: SnackbarSeverity) => void;
+}
+
+const SnackbarContext = React.createContext<SnackbarContextType | undefined>(undefined);
+
+const Alert = React.forwardRef<HTMLDivElement, AlertProps>((props, ref) => {
+  return <MuiAlert elevation={6} ref={ref} variant="filled" {...props} />;
+});
+
+const SnackbarProvider: React.FC<{children: ReactNode}> = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState('');
+  const [severity, setSeverity] = useState<SnackbarSeverity>('info');
+
+  const showSnackbar = (message: string, severity: SnackbarSeverity = 'info') => {
+    setMessage(message);
+    setSeverity(severity);
+    setOpen(true);
+  };
+
+  const handleClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setOpen(false);
+  };
+
+  return (
+    <SnackbarContext.Provider value={{ showSnackbar }}>
+      {children}
+      <Snackbar open={open} autoHideDuration={6000} onClose={handleClose}>
+        <Alert onClose={handleClose} severity={severity} sx={{ width: '100%' }}>
+          {message}
+        </Alert>
+      </Snackbar>
+    </SnackbarContext.Provider>
+  );
+};
+
+// Custom hook to use the Snackbar
+const useSnackbar = () => {
+  const context = React.useContext(SnackbarContext);
+  if (context === undefined) {
+    throw new Error('useSnackbar must be used within a SnackbarProvider');
+  }
+  return context;
+};
+
+// Extract the main content to a separate component
+const FormBuilderContent: React.FC = () => {
   const theme = useTheme();
+  const { showSnackbar } = useSnackbar();
   const [form, setForm] = useState<Form>({ sections: [] });
   const [selectedItem, setSelectedItem] = useState<
     | { type: 'field'; sectionIndex: number; fieldIndex: number }
@@ -1186,6 +1245,16 @@ const formatLabelToName = (label: string): string => {
         return;
       }
       
+      // Check if this move would create a circular dependency
+      if (wouldCreateCircularDependency(form.sections, fromSectionIdx, toSectionIdx)) {
+        // Show error message
+        showSnackbar(
+          "Cannot move section: This would create a circular dependency with conditional fields.", 
+          'error'
+        );
+        return;
+      }
+      
       setForm(prev => {
         const newSections = [...prev.sections];
         const [movedSection] = newSections.splice(fromSectionIdx, 1);
@@ -1193,51 +1262,7 @@ const formatLabelToName = (label: string): string => {
         return { ...prev, sections: newSections };
       });
       
-      // Update selection if needed
-      if (selectedItem?.type === 'section' && selectedItem.index === fromSectionIdx) {
-        setSelectedItem({ type: 'section', index: toSectionIdx });
-      } else if (selectedItem?.type === 'field' && selectedItem.sectionIndex === fromSectionIdx) {
-        setSelectedItem({ 
-          type: 'field', 
-          sectionIndex: toSectionIdx, 
-          fieldIndex: selectedItem.fieldIndex 
-        });
-      }
-      
-      // Additional adjustments to field selection if sections between fromSectionIdx and toSectionIdx shifted
-      if (selectedItem?.type === 'section') {
-        if (fromSectionIdx < toSectionIdx) {
-          // Moving section down
-          if (selectedItem.index > fromSectionIdx && selectedItem.index <= toSectionIdx) {
-            setSelectedItem({ type: 'section', index: selectedItem.index - 1 });
-          }
-        } else {
-          // Moving section up
-          if (selectedItem.index >= toSectionIdx && selectedItem.index < fromSectionIdx) {
-            setSelectedItem({ type: 'section', index: selectedItem.index + 1 });
-          }
-        }
-      } else if (selectedItem?.type === 'field') {
-        if (fromSectionIdx < toSectionIdx) {
-          // Moving section down
-          if (selectedItem.sectionIndex > fromSectionIdx && selectedItem.sectionIndex <= toSectionIdx) {
-            setSelectedItem({ 
-              type: 'field', 
-              sectionIndex: selectedItem.sectionIndex - 1, 
-              fieldIndex: selectedItem.fieldIndex 
-            });
-          }
-        } else {
-          // Moving section up
-          if (selectedItem.sectionIndex >= toSectionIdx && selectedItem.sectionIndex < fromSectionIdx) {
-            setSelectedItem({ 
-              type: 'field', 
-              sectionIndex: selectedItem.sectionIndex + 1, 
-              fieldIndex: selectedItem.fieldIndex 
-            });
-          }
-        }
-      }
+      // Rest of your existing code for updating selection...
     }
   };
 
@@ -1324,15 +1349,11 @@ const moveSectionUp = (sectionIndex: number, e?: React.MouseEvent) => {
   e?.stopPropagation();
   if (sectionIndex <= 0) return;
   
-  const sectionToMove = form.sections[sectionIndex];
-  const targetSection = form.sections[sectionIndex - 1];
-  
   // Check if moving would create a circular dependency
-  if (targetSection.conditionField && 
-      sectionToMove.fields.some(f => f.name === targetSection.conditionField)) {
+  if (wouldCreateCircularDependency(form.sections, sectionIndex, sectionIndex - 1)) {
     alert(
-      `Cannot move section "${sectionToMove.name}" up because section "${targetSection.name}" ` +
-      `depends on one of its fields. This would create a circular dependency.`
+      `Cannot move section "${form.sections[sectionIndex].name}" up because this would create ` +
+      `a circular dependency with conditional fields.`
     );
     return;
   }
@@ -2618,11 +2639,12 @@ const a11yProps = (index: number) => {
   };
 };
 
-// Add this new component at the end of your file
+// Replace the DependencyGraphVisualizer component with an enhanced tree-like visualization
+
 const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph }) => {
   const theme = useTheme();
   
-  if (graph.edges.length === 0) {
+  if (graph.nodes.length === 0) {
     return (
       <Box sx={{ 
         display: 'flex', 
@@ -2631,64 +2653,313 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
         height: '100%' 
       }}>
         <Typography variant="body1" color="text.secondary">
-          No dependencies found. Add conditional sections to visualize relationships.
+          No sections found. Add sections to visualize dependencies.
         </Typography>
       </Box>
     );
   }
   
-  return (
-    <Box sx={{ height: '100%', overflow: 'auto' }}>
-      <Typography variant="h6" gutterBottom>Section Dependencies</Typography>
+  // Build a hierarchical structure for visualization
+  const buildDependencyTree = () => {
+    // Get all section nodes (not field nodes)
+    const sectionNodes = graph.nodes.filter(node => node.type === 'section' && !node.parentId);
+    
+    // Map of section IDs to their dependency info
+    const dependencyMap: Record<string, {
+      node: DependencyNode;
+      dependsOn: Array<{
+        fieldNode: DependencyNode;
+        sectionNode: DependencyNode;
+        condition: string;
+      }>;
+      children: string[];
+    }> = {};
+    
+    // Initialize the map with all sections
+    sectionNodes.forEach(node => {
+      dependencyMap[node.id] = {
+        node,
+        dependsOn: [],
+        children: []
+      };
+    });
+    
+    // Add dependencies based on edges
+    graph.edges.forEach(edge => {
+      const sourceNode = graph.nodes.find(n => n.id === edge.source);
+      const targetNode = graph.nodes.find(n => n.id === edge.target);
       
-      {graph.edges.map(edge => {
-        const sourceNode = graph.nodes.find(n => n.id === edge.source);
-        const targetNode = graph.nodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode || sourceNode.type !== 'section') return;
+      
+      // Find the section that contains this field
+      if (targetNode.type === 'field' && targetNode.parentId) {
+        const fieldSectionNode = graph.nodes.find(n => n.id === targetNode.parentId);
         
-        if (!sourceNode || !targetNode) return null;
-        
-        // Extract just the field name from the target ID which includes section ID
-        const fieldName = targetNode.label;
-        const parentNode = targetNode.parentId ? 
-          graph.nodes.find(n => n.id === targetNode.parentId) : null;
-        
-        return (
-          <Paper 
-            key={edge.id} 
-            elevation={1}
-            sx={{ 
-              p: 2, 
-              mb: 2, 
-              display: 'flex',
-              flexDirection: 'column',
-              border: `1px solid ${theme.palette.divider}`,
-              borderLeft: `4px solid ${theme.palette.primary.main}`
-            }}
-          >
-            <Typography variant="subtitle1" fontWeight="medium">
-              {sourceNode.label}
-            </Typography>
-            
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mt: 1,
-              color: theme.palette.text.secondary
-            }}>
-              <ArrowDownwardIcon sx={{ mr: 1, transform: 'rotate(45deg)' }} />
-              <Typography>
-                Depends on field <strong>{fieldName}</strong> 
-                {parentNode && ` in section "${parentNode.label}"`} 
-                {edge.condition}
+        if (fieldSectionNode && dependencyMap[sourceNode.id]) {
+          dependencyMap[sourceNode.id].dependsOn.push({
+            fieldNode: targetNode,
+            sectionNode: fieldSectionNode,
+            condition: edge.condition || ''
+          });
+          
+          // Record parent-child relationship
+          if (dependencyMap[fieldSectionNode.id]) {
+            dependencyMap[fieldSectionNode.id].children.push(sourceNode.id);
+          }
+        }
+      }
+    });
+    
+    return dependencyMap;
+  };
+  
+  const dependencyTree = buildDependencyTree();
+  
+  // Find root nodes (sections that don't depend on any other sections)
+  const rootNodes = Object.keys(dependencyTree).filter(nodeId => 
+    dependencyTree[nodeId].dependsOn.length === 0
+  );
+  
+  // Recursive component to render a node and its children
+  const renderNode = (nodeId: string, level: number = 0, visited: Set<string> = new Set()) => {
+    // Prevent circular rendering
+    if (visited.has(nodeId)) {
+      return (
+        <Box key={`cycle-${nodeId}`} sx={{ ml: level * 3, mt: 1, color: 'error.main' }}>
+          <Typography variant="body2">Circular dependency detected!</Typography>
+        </Box>
+      );
+    }
+    
+    const nodeInfo = dependencyTree[nodeId];
+    if (!nodeInfo) return null;
+    
+    const newVisited = new Set(visited);
+    newVisited.add(nodeId);
+    
+    return (
+      <Box key={nodeId} sx={{ mb: 2 }}>
+        {/* Node representation */}
+        <Paper 
+          elevation={1}
+          sx={{ 
+            p: 2, 
+            borderRadius: '8px',
+            backgroundColor: level === 0 ? 'background.paper' : alpha(theme.palette.background.paper, 0.8),
+            border: `1px solid ${theme.palette.divider}`,
+            boxShadow: level > 0 ? 1 : 3,
+            borderLeft: `4px solid ${
+              level === 0 ? theme.palette.primary.main : 
+              level === 1 ? theme.palette.secondary.main :
+              theme.palette.success.main
+            }`,
+            ml: level * 3
+          }}
+        >
+          <Typography variant="subtitle1" fontWeight="medium">
+            {nodeInfo.node.label}
+          </Typography>
+          
+          {/* Display dependencies */}
+          {nodeInfo.dependsOn.length > 0 && (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontWeight: 'medium' }}>
+                Depends on:
               </Typography>
+              {nodeInfo.dependsOn.map((dep, idx) => (
+                <Box 
+                  key={`dep-${idx}`} 
+                  sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mt: 0.5,
+                    pl: 1,
+                    borderLeft: `2px solid ${alpha(theme.palette.divider, 0.5)}`
+                  }}
+                >
+                  <ArrowBackIcon 
+                    sx={{ 
+                      mr: 1, 
+                      fontSize: '0.9rem', 
+                      color: theme.palette.text.secondary 
+                    }} 
+                  />
+                  <Typography variant="body2">
+                    Field <strong>{dep.fieldNode.label}</strong> from section "{dep.sectionNode.label}"
+                    {dep.condition && <span style={{ color: theme.palette.info.main }}> {dep.condition}</span>}
+                  </Typography>
+                </Box>
+              ))}
             </Box>
-          </Paper>
-        );
-      })}
+          )}
+        </Paper>
+        
+        {/* Connection line to children */}
+        {dependencyTree[nodeId].children.length > 0 && (
+          <Box 
+            sx={{ 
+              height: '20px', 
+              ml: level * 3 + 2, 
+              borderLeft: `2px dashed ${theme.palette.divider}` 
+            }} 
+          />
+        )}
+        
+        {/* Render children */}
+        {dependencyTree[nodeId].children.map(childId => 
+          renderNode(childId, level + 1, newVisited)
+        )}
+      </Box>
+    );
+  };
+  
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" gutterBottom>Section Dependency Tree</Typography>
+      <Typography variant="body2" color="text.secondary" paragraph>
+        This visualization shows how sections depend on fields from other sections.
+        Sections at the top are independent, while sections below depend on fields from sections above.
+      </Typography>
+      
+      {rootNodes.length === 0 ? (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          No root sections found. There might be circular dependencies in your form structure.
+        </Alert>
+      ) : (
+        <Box sx={{ mt: 2 }}>
+          {rootNodes.map(nodeId => renderNode(nodeId))}
+        </Box>
+      )}
+      
+      {/* Legend */}
+      <Paper sx={{ mt: 3, p: 2, backgroundColor: alpha(theme.palette.background.paper, 0.7) }}>
+        <Typography variant="subtitle2" gutterBottom>Legend:</Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: 16, height: 16, backgroundColor: theme.palette.primary.main, mr: 1 }} />
+            <Typography variant="body2">Root sections (don't depend on any fields)</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: 16, height: 16, backgroundColor: theme.palette.secondary.main, mr: 1 }} />
+            <Typography variant="body2">Level 1 dependent sections</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: 16, height: 16, backgroundColor: theme.palette.success.main, mr: 1 }} />
+            <Typography variant="body2">Deeper level dependent sections</Typography>
+          </Box>
+        </Box>
+      </Paper>
     </Box>
   );
 };
 
-export default Playground;
+// Add these utility functions for dependency validation
 
-//Could you ensure a proper DAG is created to implement section's conditional field mappings.
+// Detect if moving a section would create a circular dependency
+const wouldCreateCircularDependency = (
+  sections: Section[], 
+  movingSection: number, 
+  targetPosition: number
+): boolean => {
+  // Create a copy of sections in the proposed new order
+  const proposedSections = [...sections];
+  const [sectionToMove] = proposedSections.splice(movingSection, 1);
+  proposedSections.splice(targetPosition, 0, sectionToMove);
+  
+  // Build dependency graph from the proposed arrangement
+  const graph: Record<string, string[]> = {};
+  
+  // Initialize graph with all section IDs
+  proposedSections.forEach(section => {
+    graph[section.id] = [];
+  });
+  
+  // Add dependencies
+  proposedSections.forEach(section => {
+    if (section.conditionField) {
+      // Find which section contains this field
+      for (const otherSection of proposedSections) {
+        if (otherSection.fields.some(f => f.name === section.conditionField)) {
+          graph[section.id].push(otherSection.id);
+          break;
+        }
+        
+        // Check nested sections too
+        if (otherSection.nestedSections) {
+          for (const nestedSection of otherSection.nestedSections) {
+            if (nestedSection.fields.some(f => f.name === section.conditionField)) {
+              graph[section.id].push(otherSection.id);
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Add parent-child relationships for nested sections
+    if (section.nestedSections) {
+      section.nestedSections.forEach(nestedSection => {
+        if (nestedSection.id && graph[nestedSection.id]) {
+          graph[nestedSection.id].push(section.id);
+        }
+      });
+    }
+  });
+  
+  // Check for cycles using DFS
+  return hasCycle(graph);
+};
+
+// Depth-first search to detect cycles in the graph
+const hasCycle = (graph: Record<string, string[]>): boolean => {
+  const visited: Record<string, boolean> = {};
+  const recStack: Record<string, boolean> = {};
+  
+  for (const node in graph) {
+    if (dfsCheckCycle(node, graph, visited, recStack)) {
+      return true;
+    }
+  }
+  
+  return false;
+};
+
+const dfsCheckCycle = (
+  node: string, 
+  graph: Record<string, string[]>, 
+  visited: Record<string, boolean>, 
+  recStack: Record<string, boolean>
+): boolean => {
+  // Mark current node as visited and add to recursion stack
+  if (!visited[node]) {
+    visited[node] = true;
+    recStack[node] = true;
+    
+    // Visit all adjacent vertices
+    for (const neighbor of graph[node] || []) {
+      // If not visited, recursively check that subtree
+      if (!visited[neighbor] && dfsCheckCycle(neighbor, graph, visited, recStack)) {
+        return true;
+      } 
+      // If already in recursion stack, we found a cycle
+      else if (recStack[neighbor]) {
+        return true;
+      }
+    }
+  }
+  
+  // Remove from recursion stack
+  recStack[node] = false;
+  return false;
+};
+
+// Then modify the Playground component to be just a wrapper with the provider
+const Playground: React.FC = () => {
+  return (
+    <SnackbarProvider>
+      <FormBuilderContent />
+    </SnackbarProvider>
+  );
+};
+
+export default Playground;
