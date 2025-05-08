@@ -650,20 +650,35 @@ const Playground: React.FC = () => {
   };
 
   const addSection = () => {
-    setForm((prev) => ({
+    const newSectionName = `Section ${form.sections.length + 1}`;
+    const newObjectName = formatLabelToName(newSectionName); // Create helper function if missing
+    
+    const newSection: Section = {
+      id: `section_${Date.now()}`,
+      name: newSectionName,
+      objectName: newObjectName, // Always initialize this
+      fields: []
+    };
+    
+    setForm(prev => ({
       ...prev,
-      sections: [
-        ...prev.sections, 
-        { 
-          id: `section_${Date.now()}`,
-          name: `Section ${prev.sections.length + 1}`, 
-          objectName: '',
-          fields: [],
-          nestedSections: []
-        }
-      ],
+      sections: [...prev.sections, newSection]
     }));
   };
+
+  // Add this helper function if it doesn't exist
+const formatLabelToName = (label: string): string => {
+  if (!label) return '';
+  
+  // Replace spaces and special chars with underscores, then remove any non-alphanumeric chars
+  const sanitized = label
+    .replace(/[\s-]+/g, '_') // Replace spaces and hyphens with underscores
+    .replace(/[^a-zA-Z0-9_]/g, '') // Remove all non-alphanumeric chars except underscores
+    .replace(/_{2,}/g, '_'); // Replace multiple consecutive underscores with a single one
+  
+  // Convert to camelCase (first char lowercase)
+  return sanitized.charAt(0).toLowerCase() + sanitized.slice(1);
+};
 
   // Add these utility functions inside the component
   const getAvailableFieldsForSection = (sectionIndex: number) => {

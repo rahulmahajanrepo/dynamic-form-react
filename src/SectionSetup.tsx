@@ -76,17 +76,21 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
 
   // Add this useEffect to update state when the section prop changes
   useEffect(() => {
-    // Update all state variables when section changes
     setName(section.name || '');
-    setObjectName(section.objectName || formatLabelToName(section.name || ''));
-    setConditionField(section.conditionField || '');
-    setConditionValue(section.conditionValue || '');
-    setIsSubSection(section.isSubSection || false);
-    setObjectNameManuallyEdited(!!section.objectName);
+    // Always set objectName from section or generate it if missing
+    const objectNameValue = section.objectName || formatLabelToName(section.name || '');
+    setObjectName(objectNameValue);
     
-    // Reset validation error
-    setValidationError(null);
-  }, [section]); // Dependency on section means this will run whenever section changes
+    // If section.objectName is missing but we generated one, update the parent
+    if (!section.objectName && objectNameValue) {
+      onUpdate({
+        ...section,
+        objectName: objectNameValue
+      });
+    }
+    
+    // Other state initializations...
+  }, [section, onUpdate]); // Dependency on section and onUpdate means this will run whenever they change
 
   // Update the getAvailableConditionFields function to show hierarchy
   const getAvailableConditionFields = () => {
