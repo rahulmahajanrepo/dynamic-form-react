@@ -267,96 +267,99 @@ const validateForm = () => {
     });
   };
 
-  // Update the buildStructuredData function to include grid data
+  // Update the buildStructuredData function to include all sections
 const buildStructuredData = () => {
   const result: Record<string, any> = {};
   
   // Process all top-level sections
-  form.sections.forEach(section => {
+  form.sections.forEach((section, index) => {
     // Skip sections that aren't visible
     if (!isSectionVisible(section)) {
       return;
     }
     
-    // Only process top-level sections with objectName
-    if (section.objectName) {
-      // Create container for this section's data
-      const sectionData: Record<string, any> = {};
-      result[section.objectName] = sectionData;
-      
-      // Add fields from this section
-      section.fields.forEach(field => {
-        if (field.name) {
-          // Check if it's a grid field
-          if (field.type === 'grid' && gridValues[field.name]) {
-            // Include grid data from gridValues state
-            sectionData[field.name] = gridValues[field.name].rows || [];
-          } 
-          // Or a regular field with a value
-          else if (formValues[field.name] !== undefined) {
-            sectionData[field.name] = formValues[field.name];
-          }
+    // Get a valid object name (using fallbacks if needed)
+    const objectKey = section.objectName || section.name || `section_${index}`;
+    
+    // Create container for this section's data
+    const sectionData: Record<string, any> = {};
+    result[objectKey] = sectionData;
+    
+    // Add fields from this section
+    section.fields.forEach(field => {
+      if (field.name) {
+        // Check if it's a grid field
+        if (field.type === 'grid' && gridValues[field.name]) {
+          // Include grid data from gridValues state
+          sectionData[field.name] = gridValues[field.name].rows || [];
+        } 
+        // Or a regular field with a value
+        else if (formValues[field.name] !== undefined) {
+          sectionData[field.name] = formValues[field.name];
+        }
+      }
+    });
+    
+    // Process nested sections if any
+    if (section.nestedSections && section.nestedSections.length > 0) {
+      // First pass: process regular nested sections (not sub-sections)
+      section.nestedSections.forEach((nestedSection, nestedIndex) => {
+        if (!isSectionVisible(nestedSection)) {
+          return;
+        }
+        
+        if (!nestedSection.isSubSection) {
+          // Get a valid object key for the nested section
+          const nestedKey = nestedSection.objectName || nestedSection.name || `nested_section_${nestedIndex}`;
+          
+          const nestedData: Record<string, any> = {};
+          sectionData[nestedKey] = nestedData;
+          
+          // Add fields from this nested section
+          nestedSection.fields.forEach(field => {
+            if (field.name) {
+              // Check if it's a grid field
+              if (field.type === 'grid' && gridValues[field.name]) {
+                // Include grid data from gridValues state
+                nestedData[field.name] = gridValues[field.name].rows || [];
+              }
+              // Or a regular field with a value 
+              else if (formValues[field.name] !== undefined) {
+                nestedData[field.name] = formValues[field.name];
+              }
+            }
+          });
         }
       });
       
-      // Process nested sections if any
-      if (section.nestedSections && section.nestedSections.length > 0) {
-        // First pass: process regular nested sections (not sub-sections)
-        section.nestedSections.forEach(nestedSection => {
-          if (!isSectionVisible(nestedSection)) {
-            return;
-          }
-          
-          if (!nestedSection.isSubSection && nestedSection.objectName) {
-            const nestedData: Record<string, any> = {};
-            sectionData[nestedSection.objectName] = nestedData;
-            
-            // Add fields from this nested section
-            nestedSection.fields.forEach(field => {
-              if (field.name) {
-                // Check if it's a grid field
-                if (field.type === 'grid' && gridValues[field.name]) {
-                  // Include grid data from gridValues state
-                  nestedData[field.name] = gridValues[field.name].rows || [];
-                }
-                // Or a regular field with a value 
-                else if (formValues[field.name] !== undefined) {
-                  nestedData[field.name] = formValues[field.name];
-                }
-              }
-            });
-          }
-        });
+      // Second pass: process sub-sections (add fields directly to parent)
+      section.nestedSections.forEach(nestedSection => {
+        if (!isSectionVisible(nestedSection)) {
+          return;
+        }
         
-        // Second pass: process sub-sections (add fields directly to parent)
-        section.nestedSections.forEach(nestedSection => {
-          if (!isSectionVisible(nestedSection)) {
-            return;
-          }
-          
-          if (nestedSection.isSubSection) {
-            // Add fields directly to parent section data
-            nestedSection.fields.forEach(field => {
-              if (field.name) {
-                // Check if it's a grid field
-                if (field.type === 'grid' && gridValues[field.name]) {
-                  // Include grid data from gridValues state
-                  sectionData[field.name] = gridValues[field.name].rows || [];
-                }
-                // Or a regular field with a value
-                else if (formValues[field.name] !== undefined) {
-                  sectionData[field.name] = formValues[field.name];
-                }
+        if (nestedSection.isSubSection) {
+          // Add fields directly to parent section data
+          nestedSection.fields.forEach(field => {
+            if (field.name) {
+              // Check if it's a grid field
+              if (field.type === 'grid' && gridValues[field.name]) {
+                // Include grid data from gridValues state
+                sectionData[field.name] = gridValues[field.name].rows || [];
               }
-            });
-          }
-        });
-      }
+              // Or a regular field with a value
+              else if (formValues[field.name] !== undefined) {
+                sectionData[field.name] = formValues[field.name];
+              }
+            }
+          });
+        }
+      });
     }
   });
   
-  console.log('Structured data:', result);
   console.log('Structured data:', JSON.stringify(result, null, 2));
+  console.log(result);
   return result;
 };
 
@@ -561,7 +564,7 @@ const buildStructuredData = () => {
 
   // Add a useEffect to log form values when they change (helpful for debugging)
   useEffect(() => {
-    console.log('Form values changed:', formValues);
+    //console.log('Form values changed:', formValues);
   }, [formValues]);
 
   // Replace the code in useEffect that's causing the error
