@@ -29,13 +29,6 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit }) => {
     // Check if the condition field has a value in our form data
     const fieldValue = formValues[section.conditionField];
     
-    // Add debug output
-    console.log(`Checking visibility for section ${section.name}:`, {
-      conditionField: section.conditionField,
-      conditionValue: section.conditionValue,
-      currentFieldValue: fieldValue,
-    });
-    
     // Compare the field value with the condition value
     // For string comparison, use exact match
     if (typeof fieldValue === 'string' && typeof section.conditionValue === 'string') {
@@ -256,20 +249,116 @@ const validateForm = () => {
   };
   
   // Handle form submission
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Validate all fields before submission
+    // First validate the form
     if (!validateForm()) {
-      return; // Don't submit if validation fails
+      return;
     }
     
-    // Process the form values into the nested structure
-    const processedData = processFormValues();
+    // Build structured data
+    const structuredData = buildStructuredData();
     
-    // Submit the processed data, not just the flat form values
-    onSubmit(processedData);
+    // Call the onSubmit callback with both raw and structured data
+    onSubmit({
+      rawValues: formValues,
+      structuredData: structuredData
+    });
   };
+
+  // Update the buildStructuredData function to include grid data
+const buildStructuredData = () => {
+  const result: Record<string, any> = {};
+  
+  // Process all top-level sections
+  form.sections.forEach(section => {
+    // Skip sections that aren't visible
+    if (!isSectionVisible(section)) {
+      return;
+    }
+    
+    // Only process top-level sections with objectName
+    if (section.objectName) {
+      // Create container for this section's data
+      const sectionData: Record<string, any> = {};
+      result[section.objectName] = sectionData;
+      
+      // Add fields from this section
+      section.fields.forEach(field => {
+        if (field.name) {
+          // Check if it's a grid field
+          if (field.type === 'grid' && gridValues[field.name]) {
+            // Include grid data from gridValues state
+            sectionData[field.name] = gridValues[field.name].rows || [];
+          } 
+          // Or a regular field with a value
+          else if (formValues[field.name] !== undefined) {
+            sectionData[field.name] = formValues[field.name];
+          }
+        }
+      });
+      
+      // Process nested sections if any
+      if (section.nestedSections && section.nestedSections.length > 0) {
+        // First pass: process regular nested sections (not sub-sections)
+        section.nestedSections.forEach(nestedSection => {
+          if (!isSectionVisible(nestedSection)) {
+            return;
+          }
+          
+          if (!nestedSection.isSubSection && nestedSection.objectName) {
+            const nestedData: Record<string, any> = {};
+            sectionData[nestedSection.objectName] = nestedData;
+            
+            // Add fields from this nested section
+            nestedSection.fields.forEach(field => {
+              if (field.name) {
+                // Check if it's a grid field
+                if (field.type === 'grid' && gridValues[field.name]) {
+                  // Include grid data from gridValues state
+                  nestedData[field.name] = gridValues[field.name].rows || [];
+                }
+                // Or a regular field with a value 
+                else if (formValues[field.name] !== undefined) {
+                  nestedData[field.name] = formValues[field.name];
+                }
+              }
+            });
+          }
+        });
+        
+        // Second pass: process sub-sections (add fields directly to parent)
+        section.nestedSections.forEach(nestedSection => {
+          if (!isSectionVisible(nestedSection)) {
+            return;
+          }
+          
+          if (nestedSection.isSubSection) {
+            // Add fields directly to parent section data
+            nestedSection.fields.forEach(field => {
+              if (field.name) {
+                // Check if it's a grid field
+                if (field.type === 'grid' && gridValues[field.name]) {
+                  // Include grid data from gridValues state
+                  sectionData[field.name] = gridValues[field.name].rows || [];
+                }
+                // Or a regular field with a value
+                else if (formValues[field.name] !== undefined) {
+                  sectionData[field.name] = formValues[field.name];
+                }
+              }
+            });
+          }
+        });
+      }
+    }
+  });
+  
+  console.log('Structured data:', result);
+  console.log('Structured data:', JSON.stringify(result, null, 2));
+  return result;
+};
 
   // First, move the helper function to render section fields above the return
   const renderFields = (fields: Field[]) => {
@@ -474,6 +563,50 @@ const validateForm = () => {
   useEffect(() => {
     console.log('Form values changed:', formValues);
   }, [formValues]);
+
+  // Replace the code in useEffect that's causing the error
+useEffect(() => {
+  // Helper to collect all field names with default values
+  const collectFieldsWithDefaults = (sections: Section[]): Record<string, any> => {
+    let result: Record<string, any> = {};
+    
+    sections.forEach(section => {
+      // Get fields from this section
+      section.fields.forEach(field => {
+        // Only set default if not already in formValues
+        if (field.name && result[field.name] === undefined) {
+          // Safely handle different field types without accessing undefined properties
+          if (field.type === 'checkbox') {
+            // For checkbox fields, default to false unless specified
+            const hasDefault = 'defaultValue' in field;
+            result[field.name] = hasDefault ? 
+              (field.defaultValue === 'true' || field.defaultValue === true) : 
+              false;
+          } else {
+            // For all other field types
+            result[field.name] = 'defaultValue' in field ? field.defaultValue : '';
+          }
+        }
+      });
+      
+      // Get fields from nested sections
+      if (section.nestedSections && section.nestedSections.length > 0) {
+        result = { ...result, ...collectFieldsWithDefaults(section.nestedSections) };
+      }
+    });
+    
+    return result;
+  };
+  
+  // Rest of the useEffect stays the same
+  const fieldsWithDefaults = collectFieldsWithDefaults(form.sections);
+  
+  setFormValues(prev => ({
+    ...fieldsWithDefaults,
+    ...prev // Keep existing values
+  }));
+  
+}, [form.sections]);
 
   // Now the return statement can use these functions
   return (

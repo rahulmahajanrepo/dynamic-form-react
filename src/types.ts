@@ -1,3 +1,22 @@
+export interface DependencyNode {
+  id: string;
+  type: 'section' | 'field';
+  label: string;
+  parentId?: string;
+}
+
+export interface DependencyEdge {
+  id: string;
+  source: string;
+  target: string;
+  condition: string;
+}
+
+export interface DependencyGraph {
+  nodes: DependencyNode[];
+  edges: DependencyEdge[];
+}
+
 export interface Condition {
   field: string;
   equals: string;

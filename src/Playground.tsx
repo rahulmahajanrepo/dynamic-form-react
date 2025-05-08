@@ -55,7 +55,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 
-import { Field, Form, GridField, Section, DropdownField, RadioField,NumberField, CheckboxField, TextField as TextFieldType} from './types';
+import { DependencyGraph, DependencyNode, DependencyEdge, Field, Form, GridField, Section, DropdownField, RadioField,NumberField, CheckboxField, TextField as TextFieldType} from './types';
 import { formatNameToLabel } from './utils';
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'password', 'checkbox', 'grid'];
 
@@ -746,11 +746,81 @@ const Playground: React.FC = () => {
   };
 
   const removeSection = (sectionIndex: number) => {
-    setForm((prev) => {
-      const newSections = [...prev.sections];
-      newSections.splice(sectionIndex, 1);
-      return { ...prev, sections: newSections };
-    });
+    const sectionToRemove = form.sections[sectionIndex];
+    if (!sectionToRemove) return;
+    
+    // Find all sections that depend on this one
+    const dependentSections: Array<{ name: string, id: string }> = [];
+    
+    // Helper to find dependencies
+    const checkDependencies = (section: Section) => {
+      if (section.conditionField && 
+          sectionToRemove.fields.some(f => f.name === section.conditionField)) {
+        dependentSections.push({ name: section.name || 'Unnamed Section', id: section.id });
+      }
+      
+      if (section.nestedSections) {
+        section.nestedSections.forEach(checkDependencies);
+      }
+    };
+    
+    // Check all sections for dependencies
+    form.sections.forEach(checkDependencies);
+    
+    // If dependencies exist, warn the user
+    if (dependentSections.length > 0) {
+      const confirmDelete = window.confirm(
+        `Warning: The following sections depend on fields in "${sectionToRemove.name}":\n\n` +
+        `${dependentSections.map(s => s.name).join('\n')}\n\n` +
+        `Removing this section will break these dependencies. Continue?`
+      );
+      
+      if (!confirmDelete) return;
+      
+      // User confirmed, so we need to clear the broken dependencies
+      setForm(prev => {
+        const newForm = {...prev};
+        
+        // Function to clear dependencies
+        const clearDependencies = (section: Section): Section => {
+          const newSection = {...section};
+          
+          // If this section depends on the removed section, clear its condition
+          if (section.conditionField && 
+              sectionToRemove.fields.some(f => f.name === section.conditionField)) {
+            newSection.conditionField = '';
+            newSection.conditionValue = '';
+          }
+          
+          // Process nested sections
+          if (newSection.nestedSections) {
+            newSection.nestedSections = newSection.nestedSections.map(clearDependencies);
+          }
+          
+          return newSection;
+        };
+        
+        // Clear dependencies in all sections
+        newForm.sections = newForm.sections.map(clearDependencies);
+        
+        // Remove the section
+        newForm.sections.splice(sectionIndex, 1);
+        
+        return newForm;
+      });
+    } else {
+      // No dependencies, just remove the section
+      setForm(prev => {
+        const newSections = [...prev.sections];
+        newSections.splice(sectionIndex, 1);
+        return { ...prev, sections: newSections };
+      });
+    }
+    
+    // Update selection if needed
+    if (selectedItem?.type === 'section' && selectedItem.index === sectionIndex) {
+      setSelectedItem(null);
+    }
     
     // If the removed section was selected, clear the selection
     if (selectedItem?.type === 'section' && selectedItem.index === sectionIndex) {
@@ -1234,45 +1304,42 @@ const Playground: React.FC = () => {
     return form.sections.map((_, index) => `section-sortable-${index}`);
   };
 
-  const moveSectionUp = (sectionIndex: number, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent section selection
-    
-    if (sectionIndex > 0) {
-      setForm(prev => {
-        const newSections = [...prev.sections];
-        // Swap the section with the one above it
-        [newSections[sectionIndex - 1], newSections[sectionIndex]] = 
-          [newSections[sectionIndex], newSections[sectionIndex - 1]];
-        return { ...prev, sections: newSections };
-      });
-      
-      // Update selection if this section was selected
-      if (selectedItem?.type === 'section' && selectedItem.index === sectionIndex) {
-        setSelectedItem({ type: 'section', index: sectionIndex - 1 });
-      } 
-      // Update selection if the section above was selected
-      else if (selectedItem?.type === 'section' && selectedItem.index === sectionIndex - 1) {
-        setSelectedItem({ type: 'section', index: sectionIndex });
-      }
-      // Update field selection if any field in this section was selected
-      else if (selectedItem?.type === 'field' && selectedItem.sectionIndex === sectionIndex) {
-        setSelectedItem({ 
-          type: 'field', 
-          sectionIndex: sectionIndex - 1, 
-          fieldIndex: selectedItem.fieldIndex 
-        });
-      }
-      // Update field selection if any field in the section above was selected
-      else if (selectedItem?.type === 'field' && selectedItem.sectionIndex === sectionIndex - 1) {
-        setSelectedItem({ 
-          type: 'field', 
-          sectionIndex: sectionIndex, 
-          fieldIndex: selectedItem.fieldIndex 
-        });
-      }
-    }
-  };
+  // Add dependency validation to moveSectionUp
+const moveSectionUp = (sectionIndex: number, e?: React.MouseEvent) => {
+  e?.stopPropagation();
+  if (sectionIndex <= 0) return;
   
+  const sectionToMove = form.sections[sectionIndex];
+  const targetSection = form.sections[sectionIndex - 1];
+  
+  // Check if moving would create a circular dependency
+  if (targetSection.conditionField && 
+      sectionToMove.fields.some(f => f.name === targetSection.conditionField)) {
+    alert(
+      `Cannot move section "${sectionToMove.name}" up because section "${targetSection.name}" ` +
+      `depends on one of its fields. This would create a circular dependency.`
+    );
+    return;
+  }
+  
+  // Proceed with the move if no circular dependency
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    [newSections[sectionIndex - 1], newSections[sectionIndex]] = 
+      [newSections[sectionIndex], newSections[sectionIndex - 1]];
+    return { ...prev, sections: newSections };
+  });
+  
+  // Update selection if needed
+  if (selectedItem?.type === 'section') {
+    if (selectedItem.index === sectionIndex) {
+      setSelectedItem({ ...selectedItem, index: sectionIndex - 1 });
+    } else if (selectedItem.index === sectionIndex - 1) {
+      setSelectedItem({ ...selectedItem, index: sectionIndex });
+    }
+  }
+};
+
   const moveSectionDown = (sectionIndex: number, event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent section selection
     
@@ -1632,6 +1699,94 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
   }
 };
 
+  // Add this state for dependency tracking
+  const [dependencyGraph, setDependencyGraph] = useState<DependencyGraph>({
+    nodes: [],
+    edges: []
+  });
+
+  // Add this effect to update the dependency graph when form changes
+  useEffect(() => {
+    updateDependencyGraph();
+  }, [form.sections]);
+
+  // Function to build the dependency graph
+  const updateDependencyGraph = () => {
+    const nodes: DependencyNode[] = [];
+    const edges: DependencyEdge[] = [];
+    
+    // Process sections to build nodes and edges
+    const processSection = (section: Section, parentId?: string) => {
+      // Add section as node
+      nodes.push({
+        id: section.id,
+        type: 'section',
+        label: section.name || 'Unnamed Section',
+        parentId
+      });
+      
+      // Add fields as nodes
+      section.fields.forEach(field => {
+        nodes.push({
+          id: `${section.id}_${field.name}`,
+          type: 'field',
+          label: field.label || field.name,
+          parentId: section.id
+        });
+      });
+      
+      // Add dependency edge if this section has a condition
+      if (section.conditionField) {
+        // Find the target field's full ID by searching all sections
+        const targetSectionAndField = findSectionContainingField(section.conditionField);
+        
+        if (targetSectionAndField) {
+          const { section: targetSection, field: targetField } = targetSectionAndField;
+          
+          edges.push({
+            id: `${section.id}_depends_on_${targetField.name}`,
+            source: section.id,
+            target: `${targetSection.id}_${targetField.name}`,
+            condition: `equals "${section.conditionValue}"`
+          });
+        }
+      }
+      
+      // Process nested sections
+      if (section.nestedSections) {
+        section.nestedSections.forEach(nestedSection => {
+          processSection(nestedSection, section.id);
+        });
+      }
+    };
+    
+    // Process all top-level sections
+    form.sections.forEach(section => {
+      processSection(section);
+    });
+    
+    setDependencyGraph({ nodes, edges });
+  };
+
+  // Helper to find which section contains a field
+  const findSectionContainingField = (fieldName: string): { section: Section, field: Field } | undefined => {
+    // Search in top-level sections
+    for (const section of form.sections) {
+      // Check in this section's fields
+      const field = section.fields.find(f => f.name === fieldName);
+      if (field) return { section, field };
+      
+      // Check in nested sections
+      if (section.nestedSections) {
+        for (const nestedSection of section.nestedSections) {
+          const nestedField = nestedSection.fields.find(f => f.name === fieldName);
+          if (nestedField) return { section: nestedSection, field: nestedField };
+        }
+      }
+    }
+    return undefined;
+  };
+
   return (
     <DndContext 
       onDragStart={handleDragStart}
@@ -1705,6 +1860,7 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
             <Tab label="Design" {...a11yProps(0)} />
             <Tab label="Preview" {...a11yProps(1)} />
             <Tab label="JSON" {...a11yProps(2)} />
+            <Tab label="Dependencies" {...a11yProps(3)} />
           </Tabs>
         </AppBar>
 
@@ -2172,56 +2328,8 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
 <FormRenderer 
   form={form} 
   onSubmit={(data) => {
-    // Define the type for structuredData to allow dynamic properties
-    const structuredData: { [key: string]: any } = {};
-    
-    form.sections.forEach(section => {
-      if (section.objectName) {
-        structuredData[section.objectName] = {};
-        
-        // Add fields from this section
-        section.fields.forEach(field => {
-          if (data[field.name] !== undefined) {
-            structuredData[section.objectName][field.name] = data[field.name];
-          }
-        });
-        
-        // Process nested sections if they exist
-        if (section.nestedSections && section.nestedSections.length > 0) {
-          section.nestedSections.forEach(nestedSection => {
-            if (nestedSection.objectName) {
-              structuredData[section.objectName][nestedSection.objectName] = {};
-              
-              nestedSection.fields.forEach(field => {
-                if (data[field.name] !== undefined) {
-                  structuredData[section.objectName][nestedSection.objectName][field.name] = 
-                    data[field.name];
-                }
-              });
-            } else {
-              // If nested section has no objectName, add fields directly to parent
-              nestedSection.fields.forEach(field => {
-                if (data[field.name] !== undefined) {
-                  structuredData[section.objectName][field.name] = data[field.name];
-                }
-              });
-            }
-          });
-        }
-      } else {
-        // For sections without objectName, add fields to root level
-        section.fields.forEach(field => {
-          if (data[field.name] !== undefined) {
-            structuredData[field.name] = data[field.name];
-          }
-        });
-      }
-    });
-    
     console.log('Original form data:', data);
-    console.log('Structured form data:', structuredData);
-    
-    return structuredData;
+    return data;
   }} 
 />
                 )}
@@ -2332,6 +2440,28 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
                     {configError}
                   </Typography>
                 )}
+              </Paper>
+            </Box>
+          </TabPanel>
+
+          {/* Dependencies Tab */}
+          <TabPanel value={activeTab} index={3}>
+            <Box sx={{ 
+              height: '100%', 
+              p: 2, 
+              backgroundColor: theme.palette.grey[50],
+              overflow: 'hidden'
+            }}>
+              <Paper 
+                elevation={2} 
+                sx={{ 
+                  p: 2, 
+                  height: '100%', 
+                  borderRadius: 2,
+                  overflow: 'auto'
+                }}
+              >
+                <DependencyGraphVisualizer graph={dependencyGraph} />
               </Paper>
             </Box>
           </TabPanel>
@@ -2473,4 +2603,77 @@ const a11yProps = (index: number) => {
   };
 };
 
+// Add this new component at the end of your file
+const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph }) => {
+  const theme = useTheme();
+  
+  if (graph.edges.length === 0) {
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        height: '100%' 
+      }}>
+        <Typography variant="body1" color="text.secondary">
+          No dependencies found. Add conditional sections to visualize relationships.
+        </Typography>
+      </Box>
+    );
+  }
+  
+  return (
+    <Box sx={{ height: '100%', overflow: 'auto' }}>
+      <Typography variant="h6" gutterBottom>Section Dependencies</Typography>
+      
+      {graph.edges.map(edge => {
+        const sourceNode = graph.nodes.find(n => n.id === edge.source);
+        const targetNode = graph.nodes.find(n => n.id === edge.target);
+        
+        if (!sourceNode || !targetNode) return null;
+        
+        // Extract just the field name from the target ID which includes section ID
+        const fieldName = targetNode.label;
+        const parentNode = targetNode.parentId ? 
+          graph.nodes.find(n => n.id === targetNode.parentId) : null;
+        
+        return (
+          <Paper 
+            key={edge.id} 
+            elevation={1}
+            sx={{ 
+              p: 2, 
+              mb: 2, 
+              display: 'flex',
+              flexDirection: 'column',
+              border: `1px solid ${theme.palette.divider}`,
+              borderLeft: `4px solid ${theme.palette.primary.main}`
+            }}
+          >
+            <Typography variant="subtitle1" fontWeight="medium">
+              {sourceNode.label}
+            </Typography>
+            
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              mt: 1,
+              color: theme.palette.text.secondary
+            }}>
+              <ArrowDownwardIcon sx={{ mr: 1, transform: 'rotate(45deg)' }} />
+              <Typography>
+                Depends on field <strong>{fieldName}</strong> 
+                {parentNode && ` in section "${parentNode.label}"`} 
+                {edge.condition}
+              </Typography>
+            </Box>
+          </Paper>
+        );
+      })}
+    </Box>
+  );
+};
+
 export default Playground;
+
+//Could you ensure a proper DAG is created to implement section's conditional field mappings.

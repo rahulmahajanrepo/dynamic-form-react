@@ -139,11 +139,73 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
     }
   };
 
-  const handleConditionFieldChange = (event: SelectChangeEvent) => {
+  const handleConditionFieldChange = (event: SelectChangeEvent<string>) => {
     const value = event.target.value;
     setConditionField(value);
-    setConditionValue(''); // Reset condition value when field changes
-    onUpdate({ ...section, conditionField: value, conditionValue: '' });
+    
+    // Clear validation error if any
+    if (validationError) setValidationError(null);
+    
+    // If the condition field is being cleared, also clear the condition value
+    if (!value) {
+      setConditionValue('');
+      onUpdate({
+        ...section,
+        conditionField: '',
+        conditionValue: ''
+      });
+      return;
+    }
+    
+    // Check if the selected field is valid for this section
+    const isValid = isValidConditionField(value);
+    
+    if (!isValid) {
+      setValidationError("Condition field must be from an earlier section (no backward dependencies)");
+      return;
+    }
+    
+    // Update the section with the new condition field
+    onUpdate({
+      ...section,
+      conditionField: value,
+      conditionValue: conditionValue // Keep existing condition value
+    });
+  };
+
+  // Add this helper function to properly validate condition fields considering parent-child relationships
+  const isValidConditionField = (fieldName: string): boolean => {
+    // If this is a nested section (has a parentId), it can use fields from its parent section
+    if (section.parentId) {
+      // Find the parent section
+      const parentSection = allSections.find(s => s.id === section.parentId);
+      if (parentSection) {
+        // Check if the field is from the parent section
+        const isFromParentSection = parentSection.fields.some(f => f.name === fieldName);
+        if (isFromParentSection) {
+          return true;
+        }
+        
+        // Check fields from previous nested sections in the same parent
+        if (parentSection.nestedSections) {
+          const currentNestedIndex = parentSection.nestedSections.findIndex(ns => ns.id === section.id);
+          if (currentNestedIndex > 0) {
+            for (let i = 0; i < currentNestedIndex; i++) {
+              const prevNestedSection = parentSection.nestedSections[i];
+              if (prevNestedSection.fields.some(f => f.name === fieldName)) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Check if the field is from an earlier section (existing logic)
+    const fieldInfo = availableFields.find(f => f.name === fieldName);
+    if (!fieldInfo) return false;
+    
+    return true; // If the field is in availableFields, it should be valid
   };
 
   const handleConditionValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -178,27 +240,6 @@ const SectionSetup: React.FC<SectionSetupProps> = ({ section, onUpdate, availabl
       nestedSections: updatedNestedSections
     });
   };
-
-  // Check for circular dependencies
-  useEffect(() => {
-    if (conditionField) {
-      // Find which section the condition field belongs to
-      for (const s of allSections) {
-        const fieldExists = s.fields.some(f => f.name === conditionField);
-        if (fieldExists) {
-          // Check if this creates a circular dependency
-          const dependentSectionIndex = allSections.findIndex(sec => sec.id === s.id);
-          const currentSectionIndex = allSections.findIndex(sec => sec.id === section.id);
-          
-          if (dependentSectionIndex > currentSectionIndex) {
-            setValidationError("Condition field must be from an earlier section (no backward dependencies)");
-            return;
-          }
-        }
-      }
-      setValidationError(null);
-    }
-  }, [conditionField, section.id, allSections]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
