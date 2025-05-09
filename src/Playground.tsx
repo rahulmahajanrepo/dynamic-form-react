@@ -8,8 +8,12 @@ import {
   closestCenter,
   DragStartEvent,
   DragOverlay,
-  DragOverEvent
+  DragOverEvent,
+  defaultDropAnimationSideEffects,
+  MeasuringStrategy
 } from '@dnd-kit/core';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+
 import { useDroppable } from '@dnd-kit/core';
 import { 
   SortableContext, 
@@ -82,34 +86,71 @@ const DroppableArea: React.FC<DroppableAreaProps> = ({ id, children, isActive, o
       ref={setNodeRef}
       sx={{ 
         minHeight: '50px',
-        border: isActive ? `2px dashed ${theme.palette.primary.main}` : `1px dashed ${theme.palette.divider}`,
+        transition: 'all 0.15s ease-in-out',
         borderRadius: '4px',
         p: 1,
-        backgroundColor: isActive ? `${theme.palette.primary.light}20` : 'transparent',
-        transition: 'all 0.2s',
-        position: 'relative'
+        position: 'relative',
+        // Enhanced visual feedback
+        border: isActive 
+          ? `2px dashed ${theme.palette.primary.main}` 
+          : `1px dashed ${theme.palette.divider}`,
+        backgroundColor: isActive 
+          ? alpha(theme.palette.primary.main, 0.08)
+          : 'transparent',
+        boxShadow: isActive 
+          ? `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}`
+          : 'none',
+        // Animation effect
+        animation: isActive ? 'pulse 1.5s infinite' : 'none',
+        '@keyframes pulse': {
+          '0%': { boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.1)}` },
+          '50%': { boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.3)}` },
+          '100%': { boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.1)}` },
+        }
       }}
-      onDragOver={onDragOver}
+      data-dropzone={id} // Add data attribute for easier debugging
     >
-      {isActive && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            pointerEvents: 'none',
-            backgroundColor: `${theme.palette.primary.main}10`,
-            borderRadius: '4px',
-            zIndex: 1
-          }}
-        />
-      )}
       <Box sx={{ position: 'relative', zIndex: 2 }}>
         {children}
       </Box>
     </Box>
+  );
+};
+
+// Create a new FieldDropIndicator component
+const FieldDropIndicator: React.FC<{ active: boolean }> = ({ active }) => {
+  const theme = useTheme();
+  
+  if (!active) return null;
+  
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        height: '3px',
+        backgroundColor: theme.palette.primary.main,
+        my: 0.5,
+        borderRadius: '3px',
+        position: 'relative',
+        // Add animated arrow indicator
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: -8,
+          top: -7,
+          width: 0,
+          height: 0,
+          borderTop: '8px solid transparent',
+          borderBottom: '8px solid transparent',
+          borderLeft: `8px solid ${theme.palette.primary.main}`,
+          animation: 'bounce 0.8s infinite alternate'
+        },
+        '@keyframes bounce': {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(5px)' }
+        }
+      }}
+    />
   );
 };
 
@@ -122,8 +163,14 @@ interface SortableFieldItemProps {
   isSelected: boolean;
   onSelect: (e: React.MouseEvent) => void;
   onRemove: (e: React.MouseEvent) => void;
+  onMoveUp: (e: React.MouseEvent) => void;
+  onMoveDown: (e: React.MouseEvent) => void;
+  isRecentlyAdded?: boolean; // Add this prop
+  isFirst?: boolean;
+  isLast?: boolean;
 }
 
+// Update the SortableFieldItem component
 const SortableFieldItem: React.FC<SortableFieldItemProps> = ({ 
   field, 
   id,
@@ -131,7 +178,12 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
   fieldIndex, 
   isSelected, 
   onSelect,
-  onRemove 
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  isRecentlyAdded = false, // Add this prop
+  isFirst = false,
+  isLast = false
 }) => {
   const theme = useTheme();
   const {
@@ -143,7 +195,6 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
     isDragging
   } = useSortable({ id });
 
-  // Fix: Correctly type style object for React
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -155,7 +206,7 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
     <Paper
       id={id}
       ref={setNodeRef}
-      elevation={isDragging ? 4 : 1}
+      elevation={isDragging ? 4 : isRecentlyAdded ? 3 : 1}
       sx={{
         p: 1,
         my: 0.5,
@@ -164,17 +215,61 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
         position: 'relative', 
         border: isSelected
           ? `2px solid ${theme.palette.secondary.main}`
-          : isDragging 
-            ? `2px solid ${theme.palette.primary.main}` 
-            : '1px solid #e0e0e0',
+          : isRecentlyAdded
+            ? `2px solid ${theme.palette.success.main}`
+            : isDragging 
+              ? `2px solid ${theme.palette.primary.main}` 
+              : '1px solid #e0e0e0',
         '&:hover': {
           backgroundColor: theme.palette.action.hover
         },
-        boxShadow: isDragging ? theme.shadows[8] : undefined
+        boxShadow: isDragging ? theme.shadows[8] : isRecentlyAdded ? theme.shadows[4] : undefined,
+        animation: isRecentlyAdded ? 'addedFieldAnimation 0.4s ease-out' : 'none',
+        '@keyframes addedFieldAnimation': {
+          '0%': { 
+            opacity: 0.1,
+            transform: 'scale(0.8) translateY(15px)',
+            borderColor: theme.palette.success.main,
+            backgroundColor: alpha(theme.palette.success.light, 0.3)
+          },
+          '50%': { 
+            opacity: 0.9,
+            transform: 'scale(0.9) translateY(-5px)',
+            backgroundColor: alpha(theme.palette.success.light, 0.2)
+          },
+          '100%': { 
+            opacity: 1,
+            transform: 'scale(1) translateY(0)',
+            backgroundColor: alpha(theme.palette.background.paper, 1)
+          }
+        }
       }}
       style={style}
       onClick={onSelect}
     >
+      {/* Badge for recently added fields */}
+      {isRecentlyAdded && (
+        <Box sx={{
+          position: 'absolute',
+          top: -8,
+          right: -8,
+          backgroundColor: theme.palette.success.main,
+          color: '#fff',
+          borderRadius: '50%',
+          width: 20,
+          height: 20,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '12px',
+          fontWeight: 'bold',
+          animation: 'pulse 1s infinite'
+        }}>
+          <AddIcon fontSize="small" />
+        </Box>
+      )}
+      
+      {/* Field content with reordering controls */}
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center',
@@ -211,17 +306,53 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
             </Typography>
           </Box>
         </Box>
-        <IconButton 
-          size="small" 
-          color="error"
-          onClick={onRemove}
-          sx={{ 
-            opacity: 0.6,
-            '&:hover': { opacity: 1 }
-          }}
-        >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
+        
+        {/* Field actions (up, down, delete) */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Tooltip title="Move field up">
+            <span>
+              <IconButton 
+                size="small"
+                onClick={onMoveUp}
+                disabled={isFirst}
+                sx={{ 
+                  opacity: isFirst ? 0.3 : 0.7, 
+                  '&:hover': { opacity: isFirst ? 0.3 : 1 }
+                }}
+              >
+                <ArrowUpwardIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          
+          <Tooltip title="Move field down">
+            <span>
+              <IconButton 
+                size="small"
+                onClick={onMoveDown}
+                disabled={isLast}
+                sx={{ 
+                  opacity: isLast ? 0.3 : 0.7, 
+                  '&:hover': { opacity: isLast ? 0.3 : 1 }
+                }}
+              >
+                <ArrowDownwardIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          
+          <IconButton 
+            size="small" 
+            color="error"
+            onClick={onRemove}
+            sx={{ 
+              opacity: 0.6,
+              '&:hover': { opacity: 1 }
+            }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Box>
       </Box>
     </Paper>
   );
@@ -290,18 +421,26 @@ interface SortableSectionProps {
   getNestedFieldIds: (sectionIndex: number, nestedIndex: number) => string[];
   onNestedFieldSelect: (nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
   onRemoveNestedField: (nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
+  recentlyAddedField: {
+    sectionIndex: number;
+    fieldIndex: number;
+    nestedIndex?: number;
+    timestamp: number;
+  } | null;
+  onMoveNestedFieldUp: (sectionIndex: number, nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
+  onMoveNestedFieldDown: (sectionIndex: number, nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
 }
 
 const SortableSection: React.FC<SortableSectionProps> = ({ 
   section, 
-  id,
-  index,
+  id, 
+  index, 
   isSelected, 
-  onSelect,
-  onDelete,
-  onMoveUp,
-  onMoveDown,
-  children,
+  onSelect,           
+  onDelete,           
+  onMoveUp,           
+  onMoveDown,         
+  children,           
   activeDropSection,
   activeField,
   onUpdateSection,
@@ -312,7 +451,10 @@ const SortableSection: React.FC<SortableSectionProps> = ({
   onNestedSectionSelect,
   getNestedFieldIds,
   onNestedFieldSelect,
-  onRemoveNestedField
+  onRemoveNestedField,
+  recentlyAddedField,
+  onMoveNestedFieldUp,
+  onMoveNestedFieldDown
 }) => {
   const theme = useTheme();
   const {
@@ -458,8 +600,18 @@ const SortableSection: React.FC<SortableSectionProps> = ({
                         selectedItem.nestedIndex === nestedIndex &&
                         selectedItem.fieldIndex === fieldIndex
                       }
+                      isRecentlyAdded={
+                        recentlyAddedField !== null &&
+                        recentlyAddedField.sectionIndex === index &&
+                        recentlyAddedField.fieldIndex === fieldIndex &&
+                        recentlyAddedField.nestedIndex === nestedIndex
+                      }
                       onSelect={(e) => onNestedFieldSelect(nestedIndex, fieldIndex, e)}
                       onRemove={(e) => onRemoveNestedField(nestedIndex, fieldIndex, e)}
+                      onMoveUp={(e) => onMoveNestedFieldUp(index, nestedIndex, fieldIndex, e)}
+                      onMoveDown={(e) => onMoveNestedFieldDown(index, nestedIndex, fieldIndex, e)}
+                      isFirst={fieldIndex === 0}
+                      isLast={fieldIndex === nestedSection.fields.length - 1}
                     />
                   ))}
                 </SortableContext>
@@ -647,7 +799,16 @@ const useSnackbar = () => {
 const FormBuilderContent: React.FC = () => {
   const theme = useTheme();
   const { showSnackbar } = useSnackbar();
-  const [form, setForm] = useState<Form>({ sections: [] });
+  const [form, setForm] = useState<Form>({
+    sections: [
+      {
+        id: `section_${Date.now()}`,
+        name: "Section 1",
+        objectName: "section_1",
+        fields: []
+      }
+    ]
+  });
   const [selectedItem, setSelectedItem] = useState<
     | { type: 'field'; sectionIndex: number; fieldIndex: number }
     | { type: 'section'; index: number }
@@ -660,6 +821,11 @@ const FormBuilderContent: React.FC = () => {
   const [activeDropSection, setActiveDropSection] = useState<number | string | null>(null);
   const [activeField, setActiveField] = useState<{field: Field; id: string; sectionIndex: number} | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{sectionIndex: number; fieldIndex: number; nestedIndex?: number} | null>(null);
+  const [activeDragItem, setActiveDragItem] = useState<{
+    id: string;
+    type: string;
+    name?: string;
+  } | null>(null);
   
   // State for delete section confirmation dialog
   const [deleteSectionDialog, setDeleteSectionDialog] = useState<{open: boolean, sectionIndex: number | null}>({
@@ -962,309 +1128,360 @@ const formatLabelToName = (label: string): string => {
     });
   };
   
-  const handleDragStart = (event: DragStartEvent) => {
-    const { active } = event;
-    const activeId = active.id.toString();
-    
-    // Check if this is a sortable field being dragged
-    if (activeId.startsWith('field-')) {
-      const [, sectionIdx, fieldIdx] = activeId.split('-').map(Number);
-      
-      if (!isNaN(sectionIdx) && !isNaN(fieldIdx) && form.sections[sectionIdx]?.fields[fieldIdx]) {
-        const field = form.sections[sectionIdx].fields[fieldIdx];
-        setActiveField({ field, id: activeId, sectionIndex: sectionIdx });
-        setActiveDropSection(sectionIdx); // Initially set the active section to the source section
-      }
-    } 
-    // Check if this is a section being dragged
-    else if (activeId.startsWith('section-sortable-')) {
-      console.log('Section drag started:', activeId);
-      // You can add section-specific drag start logic here if needed
-    }
-    else {
-      // For new fields from the sidebar
-      console.log('Drag started (new field):', event);
-    }
-  };
+  // Replace the field-related drag and drop handlers with this implementation
 
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
+// 1. Refactor handleDragStart for better field identification
+const handleDragStart = (event: DragStartEvent) => {
+  const { active } = event;
+  const activeId = active.id.toString();
+  
+  // Update active drag item state
+  setActiveDragItem({
+    id: activeId,
+    type: active.data.current?.type || '',
+    name: active.data.current?.name
+  });
+  
+  // Clear previous states when starting a new drag
+  setDropIndicator(null);
+  
+  // Handle both regular fields and nested fields
+  if (activeId.startsWith('field-')) {
+    // For existing fields being dragged
+    const [, sectionIdx, fieldIdx] = activeId.split('-').map(Number);
     
-    if (!over) return;
-    
-    const activeId = active.id.toString();
-    const overId = over.id.toString();
-    
-    // For new field components being dragged
-    if (active.data.current?.type === 'FIELD') {
-      if (overId.startsWith('section-')) {
-        const sectionIndex = parseInt(overId.split('-')[1], 10);
-        if (!isNaN(sectionIndex)) {
-          setActiveDropSection(sectionIndex);
-          // Check if there are any fields to determine where to show the indicator
-          if (form.sections[sectionIndex].fields.length === 0) {
-            // If empty section, show at position 0
-            setDropIndicator({ sectionIndex, fieldIndex: 0 });
-          } else {
-            // For section with fields, decide based on the mouse position
-            // If the mouse is in the top half of the section, drop at the beginning
-            // Otherwise, drop at the end
-            if (event.activatorEvent && event.activatorEvent instanceof MouseEvent) {
-              const sectionElement = document.getElementById(overId);
-              if (sectionElement) {
-                const rect = sectionElement.getBoundingClientRect();
-                const mouseY = event.activatorEvent.clientY;
-                const topThreshold = rect.top + 30; // Approximately top area of section
-                const bottomThreshold = rect.bottom - 30; // Approximately bottom area of section
-                
-                if (mouseY < topThreshold) {
-                  // Near the top, show indicator at position 0
-                  setDropIndicator({ sectionIndex, fieldIndex: 0 });
-                } else if (mouseY > bottomThreshold) {
-                  // Near the bottom, show indicator at end
-                  setDropIndicator({ sectionIndex, fieldIndex: form.sections[sectionIndex].fields.length });
-                } else {
-                  // In the middle, try to find nearest field
-                  // Default to end if can't determine
-                  setDropIndicator({ sectionIndex, fieldIndex: form.sections[sectionIndex].fields.length });
-                }
-              } else {
-                // Default to end of section
-                setDropIndicator({ sectionIndex, fieldIndex: form.sections[sectionIndex].fields.length });
-              }
-            } else {
-              // Default to end of section
-              setDropIndicator({ sectionIndex, fieldIndex: form.sections[sectionIndex].fields.length });
-            }
-          }
-        }
-      } else if (overId.startsWith('field-')) {
-        const [, sectionIdx, fieldIdx] = overId.split('-').map(Number);
-        if (!isNaN(sectionIdx) && !isNaN(fieldIdx)) {
-          setActiveDropSection(sectionIdx);
-          
-          // Calculate position based on mouse location relative to the field
-          if (event.activatorEvent && event.activatorEvent instanceof MouseEvent) {
-            const fieldElement = document.getElementById(overId);
-            if (fieldElement) {
-              const rect = fieldElement.getBoundingClientRect();
-              const mouseY = event.activatorEvent.clientY;
-              const threshold = rect.top + rect.height / 2;
-              
-              // If mouse position is above the threshold, insert before the field
-              // Otherwise, insert after the field
-              setDropIndicator({ 
-                sectionIndex: sectionIdx, 
-                fieldIndex: mouseY < threshold ? fieldIdx : fieldIdx + 1 
-              });
-            } else {
-              // Fallback to insert after
-              setDropIndicator({ sectionIndex: sectionIdx, fieldIndex: fieldIdx + 1 });
-            }
-          } else {
-            // Fallback to insert after
-            setDropIndicator({ sectionIndex: sectionIdx, fieldIndex: fieldIdx + 1 });
-          }
-        }
-      }
-    } else if (activeId.startsWith('field-')) {
-      // For existing fields being reordered
-      if (overId.startsWith('section-')) {
-        const sectionIndex = parseInt(overId.split('-')[1], 10);
-        if (!isNaN(sectionIndex)) {
-          setActiveDropSection(sectionIndex);
-          // If dropping into an empty section, set drop indicator to beginning of that section
-          if (form.sections[sectionIndex].fields.length === 0) {
-            setDropIndicator({ sectionIndex, fieldIndex: 0 });
-          } else {
-            // When hovering over a section (not a specific field),
-            // show indicator at the end of the section
-            setDropIndicator({ 
-              sectionIndex, 
-              fieldIndex: form.sections[sectionIndex].fields.length 
-            });
-          }
-        }
-      } else if (overId.startsWith('field-')) {
-        const [, sectionIdx, fieldIdx] = overId.split('-').map(Number);
-        if (!isNaN(sectionIdx) && !isNaN(fieldIdx)) {
-          setActiveDropSection(sectionIdx);
-          
-          // Calculate if we're in the top half or bottom half of the field
-          // to determine if we should insert before or after it
-          if (event.activatorEvent && event.activatorEvent instanceof MouseEvent) {
-            const targetElement = document.getElementById(overId);
-            if (targetElement) {
-              const rect = targetElement.getBoundingClientRect();
-              const mouseY = event.activatorEvent.clientY;
-              const threshold = rect.top + rect.height / 2;
-              
-              // If mouse position is above the threshold, insert before the field
-              // Otherwise, insert after the field
-              setDropIndicator({ 
-                sectionIndex: sectionIdx, 
-                fieldIndex: mouseY < threshold ? fieldIdx : fieldIdx + 1 
-              });
-            } else {
-              // Fallback if we can't get element dimensions
-              setDropIndicator({ sectionIndex: sectionIdx, fieldIndex: fieldIdx });
-            }
-          } else {
-            // Fallback for non-mouse events
-            setDropIndicator({ sectionIndex: sectionIdx, fieldIndex: fieldIdx });
-          }
-        }
-      }
-    }
-    if (overId.startsWith('nested-')) {
-      const parts = overId.split('-');
-      const sectionIndex = parseInt(parts[1], 10);
-      const nestedIndex = parseInt(parts[2], 10);
-      
-      if (!isNaN(sectionIndex) && !isNaN(nestedIndex)) {
-        setActiveDropSection(`nested-${sectionIndex}-${nestedIndex}`);
-        setDropIndicator({ 
-          sectionIndex,
-          nestedIndex,
-          fieldIndex: form.sections[sectionIndex]?.nestedSections?.[nestedIndex]?.fields.length || 0 
-        });
-      }
-    }
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveDropSection(null);
-    setActiveField(null);
-    
-    // Save the drop indicator position before clearing it
-    const finalDropIndicator = dropIndicator;
-    setDropIndicator(null);
-    
-    if (!over) {
-      console.log('No valid drop target');
-      return;
-    }
-    
-    const activeId = active.id.toString();
-    const overId = over.id.toString();
-    
-    // Case 1: Dragging a new field from sidebar to a section
-    if (active.data.current?.type === 'FIELD') {
-      const fieldType = active.data.current.name as Field['type'];
-      
-      if (finalDropIndicator) {
-        // Use the drop indicator if available
-        handleDropField(
-          finalDropIndicator.sectionIndex, 
-          fieldType, 
-          finalDropIndicator.fieldIndex,
-          finalDropIndicator.nestedIndex  // Add this line to pass the nestedIndex
-        );
-        return;
-      } else if (overId.startsWith('section-')) {
-        // Fallback to dropping at the end of the section
-        const sectionIndex = parseInt(overId.split('-')[1], 10);
-        if (!isNaN(sectionIndex)) {
-          handleDropField(sectionIndex, fieldType);
-        }
-      } else if (overId.startsWith('nested-')) {
-        // Add this case for direct drops on nested sections without indicator
-        const parts = overId.split('-');
-        const sectionIndex = parseInt(parts[1], 10);
-        const nestedIndex = parseInt(parts[2], 10);
-        
-        if (!isNaN(sectionIndex) && !isNaN(nestedIndex)) {
-          handleDropField(
-            sectionIndex,
-            fieldType,
-            -1, // Add at the end
-            nestedIndex
-          );
-        }
-      }
-      return;
-    }
-    
-    // Case 2: Reordering existing fields
-    if (activeId.startsWith('field-') && finalDropIndicator) {
-      const [, fromSectionIdx, fromFieldIdx] = activeId.split('-').map(Number);
-      const toSectionIdx = finalDropIndicator.sectionIndex;
-      const toFieldIdx = finalDropIndicator.fieldIndex;
-      
-      // Skip if indices are invalid
-      if (isNaN(fromSectionIdx) || isNaN(fromFieldIdx) || isNaN(toSectionIdx) || isNaN(toFieldIdx)) {
-        return;
-      }
-      
-      // Adjust the index if moving within the same section and moving to a later position
-      let adjustedToFieldIdx = toFieldIdx;
-      if (fromSectionIdx === toSectionIdx && fromFieldIdx < toFieldIdx) {
-        adjustedToFieldIdx -= 1;
-      }
-      
-      setForm(prev => {
-        const newSections = [...prev.sections];
-        
-        // Get the field to move
-        const [fieldToMove] = newSections[fromSectionIdx].fields.splice(fromFieldIdx, 1);
-        
-        // Insert at the adjusted position
-        // If the field is moved to the end, adjust the index
-        const targetIndex = adjustedToFieldIdx > newSections[toSectionIdx].fields.length 
-          ? newSections[toSectionIdx].fields.length 
-          : adjustedToFieldIdx;
-        
-        newSections[toSectionIdx].fields.splice(targetIndex, 0, fieldToMove);
-        
-        return { ...prev, sections: newSections };
+    if (!isNaN(sectionIdx) && !isNaN(fieldIdx) && form.sections[sectionIdx]?.fields[fieldIdx]) {
+      const field = form.sections[sectionIdx].fields[fieldIdx];
+      console.log('Dragging existing field:', field.label);
+      setActiveField({ 
+        field, 
+        id: activeId, 
+        sectionIndex: sectionIdx 
       });
-      
-      // Update selection if needed
-      if (selectedItem?.type === 'field' && 
-          selectedItem.sectionIndex === fromSectionIdx && 
-          selectedItem.fieldIndex === fromFieldIdx) {
+    }
+  } 
+  // Add support for dragging nested fields
+  else if (activeId.startsWith('nested-field-')) {
+    // For nested fields being dragged
+    const [, , sectionIdx, nestedIdx, fieldIdx] = activeId.split('-').map(Number);
+    
+    if (!isNaN(sectionIdx) && !isNaN(nestedIdx) && !isNaN(fieldIdx) && 
+        form.sections[sectionIdx]?.nestedSections?.[nestedIdx]?.fields[fieldIdx]) {
+      const field = form.sections[sectionIdx].nestedSections![nestedIdx].fields[fieldIdx];
+      console.log('Dragging nested field:', field.label);
+      setActiveField({ 
+        field, 
+        id: activeId, 
+        sectionIndex: sectionIdx 
+      });
+    }
+  }
+  else if (active.data.current?.type === 'FIELD') {
+    // For new fields being dragged from the palette
+    console.log('Dragging new field of type:', active.data.current.name);
+    setActiveField(null); // Clear activeField to indicate this is a new field
+  }
+};
+
+// 2. Improve handleDragOver for more reliable drop indication
+const handleDragOver = (event: DragOverEvent) => {
+  const { active, over } = event;
+  
+  if (!over) {
+    setActiveDropSection(null);
+    setDropIndicator(null);
+    return;
+  }
+  
+  const activeId = active.id.toString();
+  const overId = over.id.toString();
+  
+  // Determine which section we're hovering over
+  let sectionIndex: number | null = null;
+  let fieldIndex: number | null = null;
+  let nestedIndex: number | null = null;
+  
+  // Case 1: Directly over a section
+  if (overId.startsWith('section-')) {
+    sectionIndex = parseInt(overId.split('-')[1], 10);
+    // Check if section exists
+    if (!form.sections[sectionIndex]) {
+      console.warn(`Dragging over non-existent section: ${sectionIndex}`);
+      setActiveDropSection(null);
+      setDropIndicator(null);
+      return;
+    }
+    fieldIndex = form.sections[sectionIndex].fields.length || 0; // Default to end
+  } 
+  // Case 2: Over a field
+  else if (overId.startsWith('field-')) {
+    const [, secIdx, fldIdx] = overId.split('-').map(Number);
+    sectionIndex = secIdx;
+    
+    // Calculate position based on cursor position relative to field center
+    if (event.activatorEvent && event.activatorEvent instanceof MouseEvent) {
+      const fieldElement = document.getElementById(overId);
+      if (fieldElement) {
+        const rect = fieldElement.getBoundingClientRect();
+        const mouseY = event.activatorEvent.clientY;
+        const midPoint = rect.top + rect.height / 2;
         
+        // If cursor is above the midpoint, insert before; otherwise after
+        fieldIndex = mouseY < midPoint ? fldIdx : fldIdx + 1;
+      } else {
+        fieldIndex = fldIdx; // Default if element not found
+      }
+    } else {
+      fieldIndex = fldIdx; // Default if no mouse event
+    }
+  }
+  // Case 3: Over a nested section
+  else if (overId.startsWith('nested-')) {
+    const parts = overId.split('-');
+    sectionIndex = parseInt(parts[1], 10);
+    nestedIndex = parseInt(parts[2], 10);
+    
+    // Default to end of nested section
+    fieldIndex = form.sections[sectionIndex]?.nestedSections?.[nestedIndex]?.fields.length || 0;
+  }
+  
+  // Update state based on drag-over information
+  if (sectionIndex !== null) {
+    // Update active drop section
+    if (nestedIndex !== null) {
+      setActiveDropSection(`nested-${sectionIndex}-${nestedIndex}`);
+    } else {
+      setActiveDropSection(sectionIndex);
+    }
+    
+    // Update drop indicator
+    if (fieldIndex !== null) {
+      setDropIndicator({ 
+        sectionIndex, 
+        fieldIndex,
+        nestedIndex: nestedIndex !== null ? nestedIndex : undefined
+      });
+    }
+  }
+};
+
+// 3. Simplify handleDragEnd for more reliable drops
+const handleDragEnd = (event: DragEndEvent) => {
+  const { active, over } = event;
+  
+  // Save indicators before clearing
+  const finalDropSection = activeDropSection;
+  const finalDropIndicator = dropIndicator;
+  
+  // Don't immediately clear states - set up a delayed state clearing
+  const activeData = activeDragItem;
+  
+  if (!over) {
+    clearDragStates();
+    return;
+  }
+  
+  const activeId = active.id.toString();
+  const overId = over.id.toString();
+  
+  // Case 1: Dragging a new field from sidebar to a section
+  if (active.data.current?.type === 'FIELD') {
+    const fieldType = active.data.current.name as Field['type'];
+    
+    // Process drag as normal but delay state clearing
+    if (finalDropIndicator) {
+      handleDropField(
+        finalDropIndicator.sectionIndex, 
+        fieldType, 
+        finalDropIndicator.fieldIndex,
+        finalDropIndicator.nestedIndex 
+      );
+    } else if (finalDropSection !== null) {
+      // Your existing drop logic...
+    }
+    
+    showSnackbar(`Added new ${active.data.current.name} field`, 'success');
+    
+    // Delay clearing states to allow for visual transition
+    setTimeout(() => {
+      clearDragStates();
+    }, 100); // Short delay
+    
+    return;
+  }
+  
+  // Case 2: Reordering/moving existing fields
+  if (activeId.startsWith('field-') && finalDropIndicator) {
+    const [, fromSectionIdx, fromFieldIdx] = activeId.split('-').map(Number);
+    const toSectionIdx = finalDropIndicator.sectionIndex;
+    const toFieldIdx = finalDropIndicator.fieldIndex;
+    const toNestedIdx = finalDropIndicator.nestedIndex;
+    
+    // Skip invalid indices
+    if (isNaN(fromSectionIdx) || isNaN(fromFieldIdx) || isNaN(toSectionIdx) || isNaN(toFieldIdx)) {
+      return;
+    }
+    
+    console.log(`Moving field from section ${fromSectionIdx}, field ${fromFieldIdx} to section ${toSectionIdx}, field ${toFieldIdx}`);
+    
+    // Adjust index for same-section moves
+    let adjustedToFieldIdx = toFieldIdx;
+    if (fromSectionIdx === toSectionIdx && !toNestedIdx && fromFieldIdx < toFieldIdx) {
+      adjustedToFieldIdx -= 1;
+    }
+    
+    // Perform the move
+    setForm(prev => {
+      const newSections = [...prev.sections];
+      
+      // 1. Extract the field to move
+      const fieldToMove = {...newSections[fromSectionIdx].fields[fromFieldIdx]};
+      newSections[fromSectionIdx].fields.splice(fromFieldIdx, 1);
+      
+      // 2. Insert field at new location
+      if (toNestedIdx !== undefined) {
+        // Moving to a nested section
+        if (!newSections[toSectionIdx].nestedSections) {
+          newSections[toSectionIdx].nestedSections = [];
+        }
+        
+        if (!newSections[toSectionIdx].nestedSections![toNestedIdx]) {
+          return prev; // Invalid nested section
+        }
+        
+        // Insert at the right position
+        newSections[toSectionIdx].nestedSections![toNestedIdx].fields.splice(
+          adjustedToFieldIdx, 
+          0, 
+          fieldToMove
+        );
+      } else {
+        // Moving within main sections
+        newSections[toSectionIdx].fields.splice(adjustedToFieldIdx, 0, fieldToMove);
+      }
+      
+      return { ...prev, sections: newSections };
+    });
+    
+    // Update selection if needed
+    if (selectedItem?.type === 'field' && 
+        selectedItem.sectionIndex === fromSectionIdx && 
+        selectedItem.fieldIndex === fromFieldIdx) {
+      if (toNestedIdx !== undefined) {
+        setSelectedItem({ 
+          type: 'nestedField', 
+          sectionIndex: toSectionIdx, 
+          nestedIndex: toNestedIdx,
+          fieldIndex: adjustedToFieldIdx 
+        });
+      } else {
         setSelectedItem({ 
           type: 'field', 
           sectionIndex: toSectionIdx, 
-          fieldIndex: adjustedToFieldIdx > form.sections[toSectionIdx].fields.length 
-            ? form.sections[toSectionIdx].fields.length 
-            : adjustedToFieldIdx 
+          fieldIndex: adjustedToFieldIdx 
         });
       }
+    }
+  }
+  
+  // Case 3: Moving a field from a nested section
+  if (activeId.startsWith('nested-field-') && finalDropIndicator) {
+    const [, , fromSectionIdx, fromNestedIdx, fromFieldIdx] = activeId.split('-').map(Number);
+    const toSectionIdx = finalDropIndicator.sectionIndex;
+    const toFieldIdx = finalDropIndicator.fieldIndex;
+    const toNestedIdx = finalDropIndicator.nestedIndex;
+    
+    // Skip invalid indices
+    if (isNaN(fromSectionIdx) || isNaN(fromNestedIdx) || isNaN(fromFieldIdx) || 
+        isNaN(toSectionIdx) || isNaN(toFieldIdx)) {
       return;
     }
-
-    // Case 3: Reordering sections
-    if (activeId.startsWith('section-sortable-') && overId.startsWith('section-sortable-')) {
-      const fromSectionIdx = parseInt(activeId.split('-')[2], 10);
-      const toSectionIdx = parseInt(overId.split('-')[2], 10);
+    
+    console.log(`Moving nested field from section ${fromSectionIdx}, nested ${fromNestedIdx}, field ${fromFieldIdx} to section ${toSectionIdx}, field ${toFieldIdx}`);
+    
+    // Perform the move
+    setForm(prev => {
+      const newSections = [...prev.sections];
       
-      if (isNaN(fromSectionIdx) || isNaN(toSectionIdx) || fromSectionIdx === toSectionIdx) {
-        return;
+      // 1. Make sure the source nested section exists
+      if (!newSections[fromSectionIdx]?.nestedSections?.[fromNestedIdx]?.fields) {
+        return prev; // Source doesn't exist
       }
       
-      // Check if this move would create a circular dependency
-      if (wouldCreateCircularDependency(form.sections, fromSectionIdx, toSectionIdx)) {
-        // Show error message
-        showSnackbar(
-          "Cannot move section: This would create a circular dependency with conditional fields.", 
-          'error'
+      // 2. Extract the field to move
+      const fieldToMove = {...newSections[fromSectionIdx].nestedSections![fromNestedIdx].fields[fromFieldIdx]};
+      newSections[fromSectionIdx].nestedSections![fromNestedIdx].fields.splice(fromFieldIdx, 1);
+      
+      // 3. Insert field at new location
+      if (toNestedIdx !== undefined) {
+        // Moving to another nested section
+        if (!newSections[toSectionIdx].nestedSections) {
+          newSections[toSectionIdx].nestedSections = [];
+        }
+        
+        if (!newSections[toSectionIdx].nestedSections![toNestedIdx]) {
+          return prev; // Invalid target
+        }
+        
+        // Insert at the right position in the nested section
+        newSections[toSectionIdx].nestedSections![toNestedIdx].fields.splice(
+          toFieldIdx, 
+          0, 
+          fieldToMove
         );
-        return;
+      } else {
+        // Moving to a main section
+        newSections[toSectionIdx].fields.splice(toFieldIdx, 0, fieldToMove);
       }
       
-      setForm(prev => {
-        const newSections = [...prev.sections];
-        const [movedSection] = newSections.splice(fromSectionIdx, 1);
-        newSections.splice(toSectionIdx, 0, movedSection);
-        return { ...prev, sections: newSections };
-      });
-      
-      // Rest of your existing code for updating selection...
+      return { ...prev, sections: newSections };
+    });
+    
+    // Update selection if the moved field was selected
+    if (selectedItem?.type === 'nestedField' && 
+        selectedItem.sectionIndex === fromSectionIdx && 
+        selectedItem.nestedIndex === fromNestedIdx &&
+        selectedItem.fieldIndex === fromFieldIdx) {
+      if (toNestedIdx !== undefined) {
+        setSelectedItem({ 
+          type: 'nestedField', 
+          sectionIndex: toSectionIdx, 
+          nestedIndex: toNestedIdx,
+          fieldIndex: toFieldIdx 
+        });
+      } else {
+        setSelectedItem({ 
+          type: 'field', 
+          sectionIndex: toSectionIdx, 
+          fieldIndex: toFieldIdx 
+        });
+      }
     }
-  };
+    
+    // Show a success message
+    showSnackbar('Field moved successfully', 'success');
+    
+    // Clear drag states
+    setTimeout(() => {
+      clearDragStates();
+    }, 100);
+    
+    return;
+  }
+  
+  // Clean up after all operations
+  setTimeout(() => {
+    clearDragStates();
+  }, 100);
+};
+
+// Helper function to clear all drag-related states
+const clearDragStates = () => {
+  setActiveDropSection(null);
+  setActiveField(null);
+  setDropIndicator(null);
+  setActiveDragItem(null);
+};
 
   // Fix: Direct handler for field selection to prevent event bubbling issues
   const handleFieldSelect = (sectionIndex: number, fieldIndex: number, event: React.MouseEvent) => {
@@ -1335,6 +1552,10 @@ const formatLabelToName = (label: string): string => {
 
   // Generate unique IDs for sortable fields
   const getFieldIds = (sectionIndex: number) => {
+    if (!form.sections[sectionIndex]) {
+      console.warn(`Section at index ${sectionIndex} doesn't exist`);
+      return [];
+    }
     return form.sections[sectionIndex].fields.map((_, fieldIndex) => 
       `field-${sectionIndex}-${fieldIndex}`
     );
@@ -1638,7 +1859,9 @@ const handleDropField = (sectionIndex: number, fieldType: Field['type'], positio
   setForm((prev) => {
     const newSections = [...prev.sections];
     
-    // Add to a nested section
+    let addedFieldIndex = -1;
+    
+    // Add to a nested section or main section logic...
     if (nestedIndex !== undefined) {
       if (newSections[sectionIndex]?.nestedSections?.[nestedIndex]) {
         const nestedSection = {...newSections[sectionIndex].nestedSections![nestedIndex]};
@@ -1661,6 +1884,10 @@ const handleDropField = (sectionIndex: number, fieldType: Field['type'], positio
           ...newSections[sectionIndex],
           nestedSections: newNestedSections
         };
+        
+        addedFieldIndex = position === -1 ? 
+          newSections[sectionIndex].nestedSections![nestedIndex].fields.length : 
+          position;
       }
     }
     // Add to main section (existing code)
@@ -1676,10 +1903,41 @@ const handleDropField = (sectionIndex: number, fieldType: Field['type'], positio
           ...newSections[sectionIndex].fields.slice(position)
         ];
       }
+      
+      addedFieldIndex = position === -1 ? 
+        newSections[sectionIndex].fields.length : 
+        position;
     }
+    
+    // Add the field tracking AFTER setting form
+    setTimeout(() => {
+      setRecentlyAddedField({
+        sectionIndex,
+        fieldIndex: addedFieldIndex,
+        nestedIndex,
+        timestamp: Date.now()
+      });
+      
+      // Automatically clear after animation completes
+      setTimeout(() => setRecentlyAddedField(null), 2000);
+    }, 50);
     
     return { ...prev, sections: newSections };
   });
+
+  // Add to handleDropField after setting recentlyAddedField
+  setTimeout(() => {
+    const addedFieldIndex = position === -1 ? 
+      (nestedIndex !== undefined 
+        ? form.sections[sectionIndex].nestedSections![nestedIndex].fields.length - 1 
+        : form.sections[sectionIndex].fields.length - 1) 
+      : position;
+
+    const fieldElement = document.getElementById(`field-${sectionIndex}-${addedFieldIndex}`);
+    if (fieldElement) {
+      fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 150);
 };
 
 const handleNestedSectionSelect = (sectionIndex: number, nestedIndex: number) => {
@@ -1751,8 +2009,12 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
     const nodes: DependencyNode[] = [];
     const edges: DependencyEdge[] = [];
     
-    // Process sections to build nodes and edges
+    // Process all sections to build nodes and edges
     const processSection = (section: Section, parentId?: string) => {
+      if (!section.id) {
+        section.id = `section_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
       // Add section as node
       nodes.push({
         id: section.id,
@@ -1791,6 +2053,15 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
       // Process nested sections
       if (section.nestedSections) {
         section.nestedSections.forEach(nestedSection => {
+          // Ensure nested sections have IDs
+          if (!nestedSection.id) {
+            nestedSection.id = `nested_section_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          }
+          
+          // Make sure the nested section has parentId set
+          nestedSection.parentId = section.id;
+          
+          // Process the nested section recursively
           processSection(nestedSection, section.id);
         });
       }
@@ -1823,6 +2094,196 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
     return undefined;
   };
 
+  // 1. First, add a success animation effect when a field is dropped
+// Add this function to your FormBuilderContent component
+
+const [recentlyAddedField, setRecentlyAddedField] = useState<{
+  sectionIndex: number;
+  fieldIndex: number;
+  nestedIndex?: number;
+  timestamp: number;
+} | null>(null);
+
+// 1. First, add these functions to the FormBuilderContent component
+const moveFieldUp = (sectionIndex: number, fieldIndex: number, e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent field selection when clicking the button
+  
+  if (fieldIndex <= 0) return; // Already at the top
+  
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    const fields = [...newSections[sectionIndex].fields];
+    
+    // Swap the field with the one above it
+    [fields[fieldIndex - 1], fields[fieldIndex]] = [fields[fieldIndex], fields[fieldIndex - 1]];
+    
+    newSections[sectionIndex] = {
+      ...newSections[sectionIndex],
+      fields
+    };
+    
+    return { ...prev, sections: newSections };
+  });
+  
+  // Update selection if needed
+  if (selectedItem?.type === 'field' && 
+      selectedItem.sectionIndex === sectionIndex && 
+      selectedItem.fieldIndex === fieldIndex) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex - 1
+    });
+  } else if (selectedItem?.type === 'field' && 
+             selectedItem.sectionIndex === sectionIndex && 
+             selectedItem.fieldIndex === fieldIndex - 1) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex
+    });
+  }
+};
+
+const moveFieldDown = (sectionIndex: number, fieldIndex: number, e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent field selection when clicking the button
+  
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    const fields = [...newSections[sectionIndex].fields];
+    
+    if (fieldIndex >= fields.length - 1) return prev; // Already at the bottom
+    
+    // Swap the field with the one below it
+    [fields[fieldIndex], fields[fieldIndex + 1]] = [fields[fieldIndex + 1], fields[fieldIndex]];
+    
+    newSections[sectionIndex] = {
+      ...newSections[sectionIndex],
+      fields
+    };
+    
+    return { ...prev, sections: newSections };
+  });
+  
+  // Update selection if needed
+  if (selectedItem?.type === 'field' && 
+      selectedItem.sectionIndex === sectionIndex && 
+      selectedItem.fieldIndex === fieldIndex) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex + 1
+    });
+  } else if (selectedItem?.type === 'field' && 
+             selectedItem.sectionIndex === sectionIndex && 
+             selectedItem.fieldIndex === fieldIndex + 1) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex
+    });
+  }
+};
+
+// 2. Add functions for nested fields
+const moveNestedFieldUp = (sectionIndex: number, nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent field selection when clicking the button
+  
+  if (fieldIndex <= 0) return; // Already at the top
+  
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    
+    if (!newSections[sectionIndex]?.nestedSections?.[nestedIndex]) {
+      return prev;
+    }
+    
+    const nestedSection = {...newSections[sectionIndex].nestedSections![nestedIndex]};
+    const fields = [...nestedSection.fields];
+    
+    // Swap with the field above
+    [fields[fieldIndex - 1], fields[fieldIndex]] = [fields[fieldIndex], fields[fieldIndex - 1]];
+    
+    nestedSection.fields = fields;
+    
+    const newNestedSections = [...newSections[sectionIndex].nestedSections!];
+    newNestedSections[nestedIndex] = nestedSection;
+    
+    newSections[sectionIndex] = {
+      ...newSections[sectionIndex],
+      nestedSections: newNestedSections
+    };
+    
+    return { ...prev, sections: newSections };
+  });
+  
+  // Update selection if needed
+  if (selectedItem?.type === 'nestedField' && 
+      selectedItem.sectionIndex === sectionIndex &&
+      selectedItem.nestedIndex === nestedIndex &&
+      selectedItem.fieldIndex === fieldIndex) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex - 1
+    });
+  } else if (selectedItem?.type === 'nestedField' && 
+             selectedItem.sectionIndex === sectionIndex &&
+             selectedItem.nestedIndex === nestedIndex &&
+             selectedItem.fieldIndex === fieldIndex - 1) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex
+    });
+  }
+};
+
+const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => {
+  e.stopPropagation(); // Prevent field selection when clicking the button
+  
+  setForm(prev => {
+    const newSections = [...prev.sections];
+    
+    if (!newSections[sectionIndex]?.nestedSections?.[nestedIndex]) {
+      return prev;
+    }
+    
+    const nestedSection = {...newSections[sectionIndex].nestedSections![nestedIndex]};
+    const fields = [...nestedSection.fields];
+    
+    if (fieldIndex >= fields.length - 1) return prev; // Already at the bottom
+    
+    // Swap with the field below
+    [fields[fieldIndex], fields[fieldIndex + 1]] = [fields[fieldIndex + 1], fields[fieldIndex]];
+    
+    nestedSection.fields = fields;
+    
+    const newNestedSections = [...newSections[sectionIndex].nestedSections!];
+    newNestedSections[nestedIndex] = nestedSection;
+    
+    newSections[sectionIndex] = {
+      ...newSections[sectionIndex],
+      nestedSections: newNestedSections
+    };
+    
+    return { ...prev, sections: newSections };
+  });
+  
+  // Update selection if needed
+  if (selectedItem?.type === 'nestedField' && 
+      selectedItem.sectionIndex === sectionIndex &&
+      selectedItem.nestedIndex === nestedIndex &&
+      selectedItem.fieldIndex === fieldIndex) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex + 1
+    });
+  } else if (selectedItem?.type === 'nestedField' && 
+             selectedItem.sectionIndex === sectionIndex &&
+             selectedItem.nestedIndex === nestedIndex &&
+             selectedItem.fieldIndex === fieldIndex + 1) {
+    setSelectedItem({
+      ...selectedItem,
+      fieldIndex: fieldIndex
+    });
+  }
+};
+
   return (
     <DndContext 
       onDragStart={handleDragStart}
@@ -1830,6 +2291,7 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
       onDragEnd={handleDragEnd} 
       sensors={sensors}
       collisionDetection={closestCenter}
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
       <Box sx={{ 
         display: 'flex', 
@@ -2023,148 +2485,116 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
                           items={getSectionIds()} 
                           strategy={verticalListSortingStrategy}
                         >
-                          {form.sections.map((section, sectionIndex) => (
-                            <SortableSection
-                              key={`section-sortable-${sectionIndex}`}
-                              id={`section-sortable-${sectionIndex}`}
-                              section={section}
-                              index={sectionIndex}
-                              isSelected={selectedItem?.type === 'section' && selectedItem.index === sectionIndex}
-                              onSelect={() => setSelectedItem({ type: 'section', index: sectionIndex })}
-                              onDelete={(e) => handleDeleteSectionClick(sectionIndex, e)}
-                              onMoveUp={(e) => moveSectionUp(sectionIndex, e)}
-                              onMoveDown={(e) => moveSectionDown(sectionIndex, e)}
-                              activeDropSection={activeDropSection}
-                              activeField={activeField}
-                              onUpdateSection={(updatedSection) => updateSection(sectionIndex, updatedSection)}
-                              onNestedSectionUp={(nestedIndex, e) => handleNestedSectionUp(sectionIndex, nestedIndex, e)}
-                              onNestedSectionDown={(nestedIndex, e) => handleNestedSectionDown(sectionIndex, nestedIndex, e)}
-                              onDeleteNestedSection={(nestedIndex, e) => handleDeleteNestedSection(sectionIndex, nestedIndex, e)}
-                              selectedItem={selectedItem}
-                              onNestedSectionSelect={(nestedIndex) => handleNestedSectionSelect(sectionIndex, nestedIndex)}
-                              getNestedFieldIds={(sectionIndex, nestedIndex) => getNestedFieldIds(sectionIndex, nestedIndex)}
-                              onNestedFieldSelect={(nestedIndex, fieldIndex, e) => 
-                                handleNestedFieldSelect(sectionIndex, nestedIndex, fieldIndex, e)
-                              }
-                              onRemoveNestedField={(nestedIndex, fieldIndex, e) => 
-                                removeNestedField(sectionIndex, nestedIndex, fieldIndex, e)
-                              }
-                            >
-                              {/* Sortable droppable area for each section */}
-                              <DroppableArea 
-                                id={`section-${sectionIndex}`} 
-                                isActive={activeDropSection === sectionIndex}
+                          {form.sections.map((section, sectionIndex) => {
+                            if (!section) return null; // Skip rendering non-existent sections
+                            
+                            return (
+                              <SortableSection
+                                key={`section-sortable-${sectionIndex}`}
+                                id={`section-sortable-${sectionIndex}`}
+                                section={section}
+                                index={sectionIndex}
+                                isSelected={selectedItem?.type === 'section' && selectedItem.index === sectionIndex}
+                                onSelect={() => setSelectedItem({ type: 'section', index: sectionIndex })}
+                                onDelete={(e) => handleDeleteSectionClick(sectionIndex, e)}
+                                onMoveUp={(e) => moveSectionUp(sectionIndex, e)}
+                                onMoveDown={(e) => moveSectionDown(sectionIndex, e)}
+                                activeDropSection={activeDropSection}
+                                activeField={activeField}
+                                onUpdateSection={(updatedSection) => updateSection(sectionIndex, updatedSection)}
+                                onNestedSectionUp={(nestedIndex, e) => handleNestedSectionUp(sectionIndex, nestedIndex, e)}
+                                onNestedSectionDown={(nestedIndex, e) => handleNestedSectionDown(sectionIndex, nestedIndex, e)}
+                                onDeleteNestedSection={(nestedIndex, e) => handleDeleteNestedSection(sectionIndex, nestedIndex, e)}
+                                selectedItem={selectedItem}
+                                onNestedSectionSelect={(nestedIndex) => handleNestedSectionSelect(sectionIndex, nestedIndex)}
+                                getNestedFieldIds={(sectionIndex, nestedIndex) => getNestedFieldIds(sectionIndex, nestedIndex)}
+                                onNestedFieldSelect={(nestedIndex, fieldIndex, e) => 
+                                  handleNestedFieldSelect(sectionIndex, nestedIndex, fieldIndex, e)
+                                }
+                                onRemoveNestedField={(nestedIndex, fieldIndex, e) => 
+                                  removeNestedField(sectionIndex, nestedIndex, fieldIndex, e)
+                                }
+                                recentlyAddedField={recentlyAddedField}
+                                onMoveNestedFieldUp={moveNestedFieldUp}
+                                onMoveNestedFieldDown={moveNestedFieldDown}
                               >
-                                {section.fields.length === 0 && (
-                                  <Typography 
-                                    variant="body2" 
-                                    color={activeDropSection === sectionIndex ? "primary" : "text.secondary"} 
-                                    sx={{ 
-                                      textAlign: 'center',
-                                      p: 2,
-                                      fontWeight: activeDropSection === sectionIndex ? 'medium' : 'normal',
-                                    }}
-                                  >
-                                    {activeDropSection === sectionIndex 
-                                      ? "Drop field here" 
-                                      : "Drag fields here"}
-                                  </Typography>
-                                )}
-                                
-                                <SortableContext 
-                                  items={getFieldIds(sectionIndex)} 
-                                  strategy={verticalListSortingStrategy}
+                                {/* Sortable droppable area for each section */}
+                                <DroppableArea 
+                                  id={`section-${sectionIndex}`} 
+                                  isActive={activeDropSection === sectionIndex}
                                 >
-                                  {/* First position drop indicator */}
-                                  {dropIndicator && 
-                                  dropIndicator.sectionIndex === sectionIndex && 
-                                  dropIndicator.fieldIndex === 0 && 
-                                  section.fields.length > 0 && (
-                                    <Box
-                                      sx={{
-                                        width: '100%',
-                                        height: '3px',
-                                        backgroundColor: theme.palette.primary.main,
-                                        mb: 1,
-                                        borderRadius: '3px',
-                                        transition: 'all 0.2s ease'
+                                  {section.fields.length === 0 && (
+                                    <Typography 
+                                      variant="body2" 
+                                      color={activeDropSection === sectionIndex ? "primary" : "text.secondary"} 
+                                      sx={{ 
+                                        textAlign: 'center',
+                                        p: 2,
+                                        fontWeight:activeDropSection === sectionIndex ? 'medium' : 'normal',
                                       }}
-                                    />
+                                    >
+                                      {activeDropSection === sectionIndex 
+                                        ? "Drop field here" 
+                                        : "Drag fields here"}
+                                    </Typography>
                                   )}
                                   
-                                  {section.fields.map((field, fieldIndex) => (
-                                    <React.Fragment key={`field-container-${sectionIndex}-${fieldIndex}`}>
-                                      {/* Mid-position drop indicators (not first position) */}
-                                      {dropIndicator && 
-                                      dropIndicator.sectionIndex === sectionIndex && 
-                                      dropIndicator.fieldIndex === fieldIndex && 
-                                      fieldIndex > 0 && (
-                                        <Box
-                                          sx={{
-                                            width: '100%',
-                                            height: '3px',
-                                            backgroundColor: theme.palette.primary.main,
-                                            mb: 1,
-                                            borderRadius: '3px',
-                                            transition: 'all 0.2s ease'
-                                          }}
-                                        />
-                                      )}
-                                      
-                                      <SortableFieldItem
-                                        key={`field-${sectionIndex}-${fieldIndex}`}
-                                        id={`field-${sectionIndex}-${fieldIndex}`}
-                                        field={field}
-                                        sectionIndex={sectionIndex}
-                                        fieldIndex={fieldIndex}
-                                        isSelected={
-                                          selectedItem?.type === 'field' && 
-                                          selectedItem.sectionIndex === sectionIndex && 
-                                          selectedItem.fieldIndex === fieldIndex
-                                        }
-                                        onSelect={(e) => handleFieldSelect(sectionIndex, fieldIndex, e)}
-                                        onRemove={(e) => removeField(sectionIndex, fieldIndex, e)}
-                                      />
-                                      
-                                      {/* After-position indicators (not last position) */}
-                                      {dropIndicator && 
-                                      dropIndicator.sectionIndex === sectionIndex && 
-                                      dropIndicator.fieldIndex === fieldIndex + 1 &&
-                                      fieldIndex < section.fields.length - 1 && (
-                                        <Box
-                                          sx={{
-                                            width: '100%',
-                                            height: '3px',
-                                            backgroundColor: theme.palette.primary.main,
-                                            mt: 1,
-                                            borderRadius: '3px',
-                                            transition: 'all 0.2s ease'
-                                          }}
-                                        />
-                                      )}
-                                    </React.Fragment>
-                                  ))}
-                                  
-                                  {/* Last position drop indicator */}
-                                  {dropIndicator && 
-                                  dropIndicator.sectionIndex === sectionIndex && 
-                                  dropIndicator.fieldIndex === section.fields.length && 
-                                  section.fields.length > 0 && (
-                                    <Box
-                                      sx={{
-                                        width: '100%',
-                                        height: '3px',
-                                        backgroundColor: theme.palette.primary.main,
-                                        mt: 1,
-                                        borderRadius: '3px',
-                                        transition: 'all 0.2s ease'
-                                      }}
+                                  <SortableContext 
+                                    items={getFieldIds(sectionIndex)} 
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    {/* First position drop indicator */}
+                                    <FieldDropIndicator 
+                                      active={
+                                        dropIndicator?.sectionIndex === sectionIndex && 
+                                        form.sections[sectionIndex] && // Add this check
+                                        dropIndicator.fieldIndex === 0 && 
+                                        !dropIndicator.nestedIndex &&
+                                        section.fields.length > 0
+                                      } 
                                     />
-                                  )}
-                                </SortableContext>
-                              </DroppableArea>
-                            </SortableSection>
-                          ))}
+                                    
+                                    {section.fields && section.fields.length > 0 ? section.fields.map((field, fieldIndex) => (
+                                      <React.Fragment key={`field-container-${sectionIndex}-${fieldIndex}`}>
+                                        <SortableFieldItem
+                                          id={`field-${sectionIndex}-${fieldIndex}`}
+                                          field={field}
+                                          sectionIndex={sectionIndex}
+                                          fieldIndex={fieldIndex}
+                                          isSelected={
+                                            selectedItem?.type === 'field' && 
+                                            selectedItem.sectionIndex === sectionIndex && 
+                                            selectedItem.fieldIndex === fieldIndex
+                                          }
+                                          isRecentlyAdded={
+                                            recentlyAddedField !== null &&
+                                            recentlyAddedField.sectionIndex === sectionIndex &&
+                                            recentlyAddedField.fieldIndex === fieldIndex &&
+                                            recentlyAddedField.nestedIndex === undefined
+                                          }
+                                          isFirst={fieldIndex === 0}
+                                          isLast={fieldIndex === section.fields.length - 1}
+                                          onSelect={(e) => handleFieldSelect(sectionIndex, fieldIndex, e)}
+                                          onRemove={(e) => removeField(sectionIndex, fieldIndex, e)}
+                                          onMoveUp={(e) => moveFieldUp(sectionIndex, fieldIndex, e)}
+                                          onMoveDown={(e) => moveFieldDown(sectionIndex, fieldIndex, e)}
+                                        />
+                                        
+                                        {/* After each field drop indicator */}
+                                        <FieldDropIndicator 
+                                          active={
+                                            dropIndicator?.sectionIndex === sectionIndex && 
+                                            dropIndicator.fieldIndex === fieldIndex + 1 &&
+                                            !dropIndicator.nestedIndex
+                                          } 
+                                        />
+                                      </React.Fragment>
+                                    )) : null}
+                                  </SortableContext>
+                                </DroppableArea>
+                              </SortableSection>
+                            );
+                          })}
                         </SortableContext>
                       )}
                     </Paper>
@@ -2527,38 +2957,79 @@ const removeNestedField = (sectionIndex: number, nestedIndex: number, fieldIndex
       </Dialog>
       
       {/* Drag overlay for visual feedback */}
-      <DragOverlay dropAnimation={{ duration: 150, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
-        {activeField && (
-          <Paper
-            elevation={6}
-            sx={{
-              p: 1,
-              borderRadius: '4px',
-              width: '250px',
-              backgroundColor: theme.palette.background.paper,
-              border: `2px solid ${theme.palette.primary.main}`,
-              boxShadow: theme.shadows[8],
-              transform: 'rotate(-1deg)',
-              opacity: 0.9
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <DragIndicatorIcon 
-                fontSize="small" 
-                sx={{ mr: 1, color: theme.palette.primary.main }} 
-              />
-              <Box>
-                <Typography variant="body1" fontWeight="medium">
-                  {activeField.field.label}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  Moving from Section {activeField.sectionIndex + 1}
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
-        )}
-      </DragOverlay>
+      <DragOverlay 
+        dropAnimation={{ 
+          duration: 400,
+          easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+          sideEffects: defaultDropAnimationSideEffects({
+            styles: { 
+              active: { 
+                opacity: '0.4' 
+              },
+              dragOverlay: {
+                opacity: '1',
+                scale: '0.96', // Make it slightly smaller to show it's "becoming" the field
+                transition: 'all 400ms cubic-bezier(0.18, 0.67, 0.6, 1.22)'
+              }
+            },
+          })
+        }}
+>
+  {activeField ? (
+    <Paper
+      elevation={6}
+      sx={{
+        p: 1.5,
+        borderRadius: '4px',
+        width: '250px',
+        backgroundColor: theme.palette.background.paper,
+        border: `2px solid ${theme.palette.primary.main}`,
+        boxShadow: `0 5px 10px ${alpha(theme.palette.primary.main, 0.2)}`,
+        transform: 'rotate(-1deg) translateZ(0)',
+        pointerEvents: 'none'
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <DragIndicatorIcon 
+          fontSize="small" 
+          sx={{ mr: 1, color: theme.palette.primary.main }} 
+        />
+        <Box>
+          <Typography variant="body1" fontWeight="medium">
+            {activeField.field.label}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {activeField.field.type} field
+          </Typography>
+        </Box>
+      </Box>
+    </Paper>
+  ) : activeDragItem?.type === 'FIELD' ? (
+    <Paper
+      elevation={6}
+      sx={{
+        p: 1.5,
+        borderRadius: '4px',
+        width: '200px',
+        backgroundColor: alpha(theme.palette.primary.light, 0.9),
+        border: `2px solid ${theme.palette.primary.main}`,
+        boxShadow: `0 8px 16px ${alpha(theme.palette.primary.dark, 0.3)}`,
+        transform: 'rotate(-1deg) translateZ(0)',
+        pointerEvents: 'none'
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <AddCircleOutlineIcon 
+          fontSize="small" 
+          sx={{ mr: 1, color: theme.palette.primary.contrastText }} 
+        />
+        <Typography variant="body1" fontWeight="medium" color="primary.contrastText">
+          New {activeDragItem.name} Field
+        </Typography>
+      </Box>
+    </Paper>
+  ) : null}
+</DragOverlay>
     </DndContext>
   );
 };
@@ -2661,8 +3132,8 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
   
   // Build a hierarchical structure for visualization
   const buildDependencyTree = () => {
-    // Get all section nodes (not field nodes)
-    const sectionNodes = graph.nodes.filter(node => node.type === 'section' && !node.parentId);
+    // Get all section nodes (both main and nested)
+    const allSectionNodes = graph.nodes.filter(node => node.type === 'section');
     
     // Map of section IDs to their dependency info
     const dependencyMap: Record<string, {
@@ -2673,14 +3144,21 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
         condition: string;
       }>;
       children: string[];
+      isNested: boolean;
+      parentSection?: string;
     }> = {};
     
     // Initialize the map with all sections
-    sectionNodes.forEach(node => {
+    allSectionNodes.forEach(node => {
+      // Determine if this is a nested section
+      const isNested = !!node.parentId;
+      
       dependencyMap[node.id] = {
         node,
         dependsOn: [],
-        children: []
+        children: [],
+        isNested,
+        parentSection: node.parentId
       };
     });
     
@@ -2715,9 +3193,10 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
   
   const dependencyTree = buildDependencyTree();
   
-  // Find root nodes (sections that don't depend on any other sections)
+  // Find root nodes (sections that don't depend on any other sections and aren't nested sections)
   const rootNodes = Object.keys(dependencyTree).filter(nodeId => 
-    dependencyTree[nodeId].dependsOn.length === 0
+    dependencyTree[nodeId].dependsOn.length === 0 && 
+    !dependencyTree[nodeId].isNested
   );
   
   // Recursive component to render a node and its children
@@ -2737,6 +3216,11 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
     const newVisited = new Set(visited);
     newVisited.add(nodeId);
     
+    // Find nested sections that belong to this section
+    const nestedSections = Object.keys(dependencyTree).filter(id => 
+      dependencyTree[id].isNested && dependencyTree[id].parentSection === nodeId
+    );
+    
     return (
       <Box key={nodeId} sx={{ mb: 2 }}>
         {/* Node representation */}
@@ -2745,10 +3229,15 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
           sx={{ 
             p: 2, 
             borderRadius: '8px',
-            backgroundColor: level === 0 ? 'background.paper' : alpha(theme.palette.background.paper, 0.8),
+            backgroundColor: level === 0 
+              ? 'background.paper' 
+              : nodeInfo.isNested
+                ? alpha(theme.palette.info.light, 0.1)
+                : alpha(theme.palette.background.paper, 0.8),
             border: `1px solid ${theme.palette.divider}`,
             boxShadow: level > 0 ? 1 : 3,
             borderLeft: `4px solid ${
+              nodeInfo.isNested ? theme.palette.info.main :
               level === 0 ? theme.palette.primary.main : 
               level === 1 ? theme.palette.secondary.main :
               theme.palette.success.main
@@ -2756,8 +3245,13 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
             ml: level * 3
           }}
         >
-          <Typography variant="subtitle1" fontWeight="medium">
-            {nodeInfo.node.label}
+          <Typography variant="subtitle1" fontWeight="medium" sx={{
+            color: nodeInfo.isNested ? theme.palette.info.dark : 'inherit'
+          }}>
+            {nodeInfo.isNested ? '↳ ' : ''}{nodeInfo.node.label}
+            {nodeInfo.isNested && <Typography component="span" variant="caption" sx={{ ml: 1 }}>
+              (Nested Section)
+            </Typography>}
           </Typography>
           
           {/* Display dependencies */}
@@ -2785,7 +3279,9 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
                     }} 
                   />
                   <Typography variant="body2">
-                    Field <strong>{dep.fieldNode.label}</strong> from section "{dep.sectionNode.label}"
+                    Field <strong>{dep.fieldNode.label}</strong> from 
+                    {dependencyTree[dep.sectionNode.id]?.isNested ? ' nested section ' : ' section '}
+                    "{dep.sectionNode.label}"
                     {dep.condition && <span style={{ color: theme.palette.info.main }}> {dep.condition}</span>}
                   </Typography>
                 </Box>
@@ -2794,8 +3290,22 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
           )}
         </Paper>
         
-        {/* Connection line to children */}
-        {dependencyTree[nodeId].children.length > 0 && (
+        {/* Render nested sections belonging to this section */}
+        {nestedSections.length > 0 && (
+          <Box sx={{ ml: level * 3 + 2, mt: 1, mb: 1 }}>
+            <Box 
+              sx={{ 
+                height: '20px',
+                borderLeft: `2px dashed ${theme.palette.info.main}`,
+                ml: 2
+              }} 
+            />
+            {nestedSections.map(nestedId => renderNode(nestedId, level + 1, newVisited))}
+          </Box>
+        )}
+        
+        {/* Connection line to dependent sections */}
+        {dependencyTree[nodeId].children.filter(id => !dependencyTree[id].isNested).length > 0 && (
           <Box 
             sx={{ 
               height: '20px', 
@@ -2805,10 +3315,10 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
           />
         )}
         
-        {/* Render children */}
-        {dependencyTree[nodeId].children.map(childId => 
-          renderNode(childId, level + 1, newVisited)
-        )}
+        {/* Render sections that depend on this one (but not nested sections) */}
+        {dependencyTree[nodeId].children
+          .filter(id => !dependencyTree[id].isNested)
+          .map(childId => renderNode(childId, level + 1, newVisited))}
       </Box>
     );
   };
@@ -2817,7 +3327,7 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
     <Box sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>Section Dependency Tree</Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
-        This visualization shows how sections depend on fields from other sections.
+        This visualization shows how sections and nested sections depend on fields from other sections.
         Sections at the top are independent, while sections below depend on fields from sections above.
       </Typography>
       
@@ -2846,6 +3356,10 @@ const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Box sx={{ width: 16, height: 16, backgroundColor: theme.palette.success.main, mr: 1 }} />
             <Typography variant="body2">Deeper level dependent sections</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ width: 16, height: 16, backgroundColor: theme.palette.info.main, mr: 1 }} />
+            <Typography variant="body2">Nested sections</Typography>
           </Box>
         </Box>
       </Paper>
