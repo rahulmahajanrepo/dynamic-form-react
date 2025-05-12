@@ -10,9 +10,9 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import AddIcon from '@mui/icons-material/Add';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import SortableFieldItem from './SortableFieldItem';
 import DroppableArea from './DroppableArea';
 import FieldDropIndicator from './FieldDropIndicator';
+import SortableFieldItem from './components/fields/SortableFieldItem';
 
 interface SortableSectionProps {
   section: Section;

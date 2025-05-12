@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Paper, Typography, IconButton, useTheme, Tooltip } from '@mui/material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Field } from '../types';
+import { Field } from '../../../types';
 import { alpha } from '@mui/material/styles';
 import DeleteIcon from '@mui/icons-material/Delete';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';

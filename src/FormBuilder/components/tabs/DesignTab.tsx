@@ -20,7 +20,7 @@ import { Field, Form, Section } from '../../../types';
 import DroppableArea from '../../DroppableArea';
 import FieldDropIndicator from '../../FieldDropIndicator';
 import SortableSection from '../../SortableSection';
-import SortableFieldItem from '../../SortableFieldItem';
+import SortableFieldItem from '../fields/SortableFieldItem';
 
 // ResizeHandle component
 const ResizeHandle: React.FC = () => {
