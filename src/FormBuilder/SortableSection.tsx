@@ -128,9 +128,9 @@ const SortableSection: React.FC<SortableSectionProps> = ({
               border: '1px solid #e0e0e0',
               cursor: 'pointer',
               // Highlight when selected
-              outline: isSelected && selectedItem?.type === 'nestedSection' && 
+              outline: selectedItem?.type === 'nestedSection' && 
                        selectedItem.nestedIndex === nestedIndex ? 
-                       `2px solid ${theme.palette.secondary.main}` : 'none'
+                       `1px solid #4dc8fb` : 'none'
             }}
             onClick={(e) => {
               e.stopPropagation(); // Prevent parent section selection
