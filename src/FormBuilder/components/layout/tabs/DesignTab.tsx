@@ -13,14 +13,14 @@ import {
   PanelResizeHandle
 } from 'react-resizable-panels';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import DraggableItem from '../../../DraggableItem';
-import FieldSetup from '../../../FieldSetup';
-import SectionSetup from '../../../SectionSetup';
-import { Field, Form, Section } from '../../../types';
-import DroppableArea from '../../DroppableArea';
-import FieldDropIndicator from '../../FieldDropIndicator';
-import SortableSection from '../../SortableSection';
-import SortableFieldItem from '../fields/SortableFieldItem';
+import DraggableItem from '../../../../DraggableItem';
+import FieldSetup from '../../../../FieldSetup';
+import SectionSetup from '../../../../SectionSetup';
+import { Field, Form, Section } from '../../../../types';
+import DroppableArea from '../../../DroppableArea';
+import FieldDropIndicator from '../../../FieldDropIndicator';
+import SortableSection from '../../../SortableSection';
+import SortableFieldItem from '../../fields/SortableFieldItem';
 
 // ResizeHandle component
 const ResizeHandle: React.FC = () => {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Form } from "../../../types";
+import { Form } from "../../../../types";
 import { Box, Button, Paper, Typography, useTheme } from "@mui/material";
 
 interface JsonTabProps {

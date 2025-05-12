@@ -65,10 +65,10 @@ import { alpha } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import Snackbar from '@mui/material/Snackbar';
 import MuiAlert, { AlertProps } from '@mui/material/Alert';
-import JsonTab from "./FormBuilder/components/tabs/JsonTab";
-import DependenciesTab from "./FormBuilder/components/tabs/DependenciesTab"; // Import the new component
-import PreviewTab from './FormBuilder/components/tabs/PreviewTab'; // Import the new component
-import DesignTab from './FormBuilder/components/tabs/DesignTab'; // Import the new component
+import JsonTab from "./FormBuilder/components/layout/tabs/JsonTab";
+import DependenciesTab from "./FormBuilder/components/layout/tabs/DependenciesTab"; // Import the new component
+import PreviewTab from './FormBuilder/components/layout/tabs/PreviewTab'; // Import the new component
+import DesignTab from './FormBuilder/components/layout/tabs/DesignTab'; // Import the new component
 
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'password', 'checkbox', 'grid'];
 

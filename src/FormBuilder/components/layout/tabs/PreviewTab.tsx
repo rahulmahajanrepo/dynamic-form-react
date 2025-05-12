@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Paper } from '@mui/material';
-import { Form } from '../../../types';
-import FormRenderer from '../../../FormRenderer';
+import { Form } from '../../../../types';
+import FormRenderer from '../../../../FormRenderer';
 
 interface PreviewTabProps {
   formSchema: Form;

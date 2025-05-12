@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Paper, Alert, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { DependencyGraph, DependencyNode, DependencyEdge } from '../../../types';
+import { DependencyGraph, DependencyNode, DependencyEdge } from '../../../../types';
 
 // DependencyGraphVisualizer component
 const DependencyGraphVisualizer: React.FC<{ graph: DependencyGraph }> = ({ graph }) => {
