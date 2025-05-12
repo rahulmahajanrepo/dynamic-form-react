@@ -17,7 +17,6 @@ const FieldRenderer: React.FC<FieldRendererProps> = ({
   const renderField = () => {
     switch (field.type) {
       case "text":
-      case "password":
       case "number":
         return (
           <input

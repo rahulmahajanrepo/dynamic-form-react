@@ -426,20 +426,6 @@ const buildStructuredData = () => {
             }}
           />
         )}
-        {field.type === 'password' && (
-          <TextField
-            label={field.label}
-            type="password"
-            placeholder={field.placeholder}
-            required={field.required}
-            value={formValues[field.name] || ''}
-            onChange={(e) => handleChange(field.name, e.target.value)}
-            onBlur={() => setTouched({...touched, [field.name]: true})}
-            fullWidth
-            error={!!touched[field.name] && !!errors[field.name]}
-            helperText={touched[field.name] && errors[field.name]}
-          />
-        )}
         {field.type === 'checkbox' && (
           <FormControl 
             required={field.required}

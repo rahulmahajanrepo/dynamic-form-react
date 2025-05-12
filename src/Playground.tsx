@@ -70,7 +70,7 @@ import DependenciesTab from "./FormBuilder/components/layout/tabs/DependenciesTa
 import PreviewTab from './FormBuilder/components/layout/tabs/PreviewTab'; // Import the new component
 import DesignTab from './FormBuilder/components/layout/tabs/design/DesignTab'; // Import the new component
 
-const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'password', 'checkbox', 'grid'];
+const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'checkbox', 'grid'];
 
 // Add this interface declaration
 interface DroppableAreaProps {
@@ -1693,7 +1693,7 @@ const handleAddField = (fieldType: Field['type']) => {
       required: false
     } as CheckboxField;
   } else {
-    // Text, textarea, password
+    // Text, textarea
     newField = {
       ...createBaseField(fieldName, fieldType, formattedLabel),
       required: false
@@ -1849,10 +1849,10 @@ const handleDropField = (sectionIndex: number, fieldType: Field['type'], positio
       required: false
     } as CheckboxField;
   } else {
-    // Text, textarea, password
+    // Text, textarea
     newField = {
       name: fieldName,
-      type: fieldType as 'text' | 'textarea' | 'password',
+      type: fieldType as 'text' | 'textarea',
       label: formattedLabel,
       placeholder: `Enter ${fieldType} value...`,
       required: false

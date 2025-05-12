@@ -22,7 +22,7 @@ export interface Condition {
   equals: string;
 }
 
-export type FieldType = 'text' | 'number' | 'dropdown' | 'radio' | 'textarea' | 'password' | 'checkbox' | 'grid';
+export type FieldType = 'text' | 'number' | 'dropdown' | 'radio' | 'textarea' | 'checkbox' | 'grid';
 
 // Base field interface with common properties
 export interface BaseField {
@@ -36,7 +36,7 @@ export interface BaseField {
 
 // Text field type
 export interface TextField extends BaseField {
-  type: 'text' | 'textarea' | 'password';
+  type: 'text' | 'textarea';
   minLength?: string | number;
   maxLength?: string | number;
   pattern?: string;
@@ -117,7 +117,7 @@ export interface Form {
 
 // Type guard functions to check field types
 export function isTextField(field: Field): field is TextField {
-  return field.type === 'text' || field.type === 'textarea' || field.type === 'password';
+  return field.type === 'text' || field.type === 'textarea';
 }
 
 export function isNumberField(field: Field): field is NumberField {
