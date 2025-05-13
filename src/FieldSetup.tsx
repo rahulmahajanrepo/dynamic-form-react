@@ -220,7 +220,7 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
           <Box sx={{ mb: 2 }}>
             <DatePicker
               label="Min Date"
-              value={field.min ? new Date(field.min) : null}
+              value={field.min ? parseISODate(field.min) : null}
               onChange={(date) => {
                 if (!date) {
                   onUpdate({ ...field, min: '' });
@@ -246,7 +246,7 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
           <Box sx={{ mb: 2 }}>
             <DatePicker
               label="Max Date"
-              value={field.max ? new Date(field.max) : null}
+              value={field.max ? parseISODate(field.max) : null}
               onChange={(date) => {
                 if (!date) {
                   onUpdate({ ...field, max: '' });
@@ -273,6 +273,13 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
     }
 
     return null;
+  };
+
+  const parseISODate = (dateString: string) => {
+    // Parse the YYYY-MM-DD format manually to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    // Month is 0-indexed in JavaScript Date
+    return new Date(year, month - 1, day, 12, 0, 0);
   };
 
   return (

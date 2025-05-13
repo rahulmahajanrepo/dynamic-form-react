@@ -14,6 +14,16 @@ import GridRenderer from '../../GridRenderer';
  * This adapter is used to render the form in the preview tab.
  */
 export class MuiFormAdapter implements IFormAdapter {
+  // Helper function to parse ISO date strings without timezone issues
+  private parseISODate(dateString: string | null | undefined) {
+    if (!dateString) return null;
+    
+    // Parse the YYYY-MM-DD format manually to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    // Month is 0-indexed in JavaScript Date
+    return new Date(year, month - 1, day, 12, 0, 0);
+  }
+
   renderField(field: Field, props: FieldProps): JSX.Element {
     const { value, onChange, onBlur, error, touched } = props;
     
@@ -64,10 +74,21 @@ export class MuiFormAdapter implements IFormAdapter {
         return (
           <DatePicker
             label={field.label}
-            value={value || null}
-            onChange={(newValue) => onChange(field.name, newValue)}
-            minDate={field.min ? new Date(field.min) : undefined}
-            maxDate={field.max ? new Date(field.max) : undefined}
+            value={typeof value === 'string' ? this.parseISODate(value) : value}
+            onChange={(newValue) => {
+              if (!newValue) {
+                onChange(field.name, null);
+                return;
+              }
+              // Format date to YYYY-MM-DD without timezone issues
+              const year = newValue.getFullYear();
+              const month = String(newValue.getMonth() + 1).padStart(2, '0');
+              const day = String(newValue.getDate()).padStart(2, '0');
+              onChange(field.name, `${year}-${month}-${day}`);
+            }}
+            minDate={field.min ? this.parseISODate(field.min) : undefined}
+            maxDate={field.max ? this.parseISODate(field.max) : undefined}
+            format="yyyy-MM-dd"
             slotProps={{
               textField: {
                 fullWidth: true,
