@@ -69,6 +69,11 @@ import JsonTab from "./FormBuilder/components/layout/tabs/JsonTab";
 import DependenciesTab from "./FormBuilder/components/layout/tabs/DependenciesTab"; // Import the new component
 import PreviewTab from './FormBuilder/components/layout/tabs/PreviewTab'; // Import the new component
 import DesignTab from './FormBuilder/components/layout/tabs/design/DesignTab'; // Import the new component
+import DesignServicesIcon from '@mui/icons-material/DesignServices';
+import PreviewIcon from '@mui/icons-material/Preview';
+import CodeIcon from '@mui/icons-material/Code';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import WebIcon from '@mui/icons-material/Web';
 
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'checkbox', 'grid', 'date'];
 
@@ -2304,67 +2309,151 @@ const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldInd
         overflow: 'hidden' // Add this to prevent any scrollbars at the root level
       }}>
         {/* Compact App Bar */}
-        <AppBar position="static" color="primary">
-          <Toolbar variant="dense">
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              Form Builder Studio
-            </Typography>
-            
-            {/* Open Sample button */}
-            <Button 
-              color="inherit" 
-              onClick={handleOpen} 
-              size="small"
-              startIcon={<CloudDownloadIcon />}
-              sx={{ mr: 1 }}
-            >
-              Open Sample
-            </Button>
-            
-            {/* Upload Config button */}
-            <input
-              accept=".json"
-              id="upload-form-config"
-              type="file"
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-            <label htmlFor="upload-form-config">
-              <Tooltip title="Upload Form Configuration">
-                <IconButton 
-                  color="inherit" 
-                  component="span"
-                  size="small"
-                  sx={{ mr: 1 }}
-                >
-                  <FileUploadIcon />
-                </IconButton>
-              </Tooltip>
-            </label>
-            
-            {/* Save button */}
-            <Button 
-              color="inherit" 
-              onClick={handleSaveFile} 
-              size="small"
-              startIcon={<SaveIcon />}
-            >
-              Save
-            </Button>
-          </Toolbar>
-          <Tabs 
-            value={activeTab} 
-            onChange={handleTabChange} 
-            textColor="inherit" 
-            indicatorColor="secondary"
-            variant="fullWidth"
+        <AppBar 
+  position="static" 
+  sx={{ 
+    background: 'linear-gradient(to right, #1976d2, #2196f3)',
+    boxShadow: 3
+  }}
+>
+  <Toolbar variant="dense" sx={{ 
+    justifyContent: 'space-between', 
+    minHeight: '48px', // Make toolbar slightly shorter
+    px: 2 // Ensure consistent horizontal padding
+  }}>
+    <Typography 
+      variant="h6" 
+      component="div" 
+      sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        fontSize: '1.3rem',
+        fontWeight: 'bold',
+        textShadow: '1px 1px 2px rgba(0,0,0,0.2)'
+      }}
+    >
+      <WebIcon sx={{ mr: 1 }} />
+      Dynamic Form Builder
+    </Typography>
+    
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <Button 
+        color="inherit" 
+        onClick={handleOpen} 
+        size="small"
+        startIcon={<CloudDownloadIcon />}
+        sx={{ 
+          mr: 1, 
+          opacity: 0.9,
+          '&:hover': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.1)' } 
+        }}
+      >
+        Sample
+      </Button>
+      
+      <input
+        accept=".json"
+        id="upload-form-config"
+        type="file"
+        onChange={handleFileUpload}
+        style={{ display: 'none' }}
+      />
+      <label htmlFor="upload-form-config">
+        <Tooltip title="Upload Form Configuration">
+          <IconButton 
+            color="inherit" 
+            component="span"
+            size="small"
+            sx={{ 
+              mr: 1,
+              opacity: 0.9,
+              '&:hover': { 
+                opacity: 1, 
+                backgroundColor: 'rgba(255,255,255,0.1)' 
+              }
+            }}
           >
-            <Tab label="Design" {...a11yProps(0)} />
-            <Tab label="Preview" {...a11yProps(1)} />
-            <Tab label="JSON" {...a11yProps(2)} />
-            <Tab label="Dependencies" {...a11yProps(3)} />
-          </Tabs>
-        </AppBar>
+            <FileUploadIcon />
+          </IconButton>
+        </Tooltip>
+      </label>
+      
+      <Button 
+        color="inherit" 
+        onClick={handleSaveFile} 
+        size="small"
+        startIcon={<SaveIcon />}
+        sx={{ 
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          '&:hover': { backgroundColor: 'rgba(255,255,255,0.2)' } 
+        }}
+      >
+        Save
+      </Button>
+    </Box>
+  </Toolbar>
+  
+  <Box sx={{ backgroundColor: 'rgba(0,0,0,0.05)' }}>
+    <Tabs 
+      value={activeTab} 
+      onChange={handleTabChange} 
+      textColor="inherit" 
+      indicatorColor="secondary"
+      variant="fullWidth"
+      sx={{
+        minHeight: '40px', // Reduce the minimum height of the tabs container
+        '& .MuiTab-root': {
+          py: 0.75, // Reduce vertical padding significantly
+          minHeight: '40px', // Make tabs shorter
+          transition: 'all 0.2s',
+          fontWeight: 500,
+          fontSize: '0.85rem', // Smaller font
+          '&:hover': {
+            backgroundColor: 'rgba(255,255,255,0.1)',
+          },
+          '&.Mui-selected': {
+            fontWeight: 600,
+          }
+        },
+        '& .MuiTabs-indicator': {
+          height: 2, // Thinner indicator
+          borderTopLeftRadius: 2,
+          borderTopRightRadius: 2,
+        },
+        '& .MuiSvgIcon-root': {
+          fontSize: '1rem', // Smaller icons
+          marginBottom: '0 !important', // Remove extra margin below icons
+          marginRight: '4px !important' // Adjust icon spacing
+        }
+      }}
+    >
+      <Tab 
+        icon={<DesignServicesIcon fontSize="small" />} 
+        iconPosition="start" 
+        label="Design" 
+        {...a11yProps(0)} 
+      />
+      <Tab 
+        icon={<PreviewIcon fontSize="small" />} 
+        iconPosition="start" 
+        label="Preview" 
+        {...a11yProps(1)} 
+      />
+      <Tab 
+        icon={<CodeIcon fontSize="small" />} 
+        iconPosition="start" 
+        label="JSON" 
+        {...a11yProps(2)} 
+      />
+      <Tab 
+        icon={<AccountTreeIcon fontSize="small" />} 
+        iconPosition="start" 
+        label="Dependencies" 
+        {...a11yProps(3)} 
+      />
+    </Tabs>
+  </Box>
+</AppBar>
 
         {/* Main Content Area */}
         <Box sx={{ 
@@ -2570,6 +2659,7 @@ interface TabPanelProps {
 // Fixed TabPanel component
 const TabPanel = (props: TabPanelProps) => {
   const { children, value, index, ...other } = props;
+  const theme = useTheme();
 
   return (
     <Box
@@ -2578,11 +2668,16 @@ const TabPanel = (props: TabPanelProps) => {
       id={`form-builder-tabpanel-${index}`}
       aria-labelledby={`form-builder-tab-${index}`}
       sx={{ 
-        display: value === index ? 'flex' : 'none', // Use display instead of hidden
+        display: value === index ? 'flex' : 'none',
         flexDirection: 'column',
-        flex: 1,  // Take up all available space
+        flex: 1,
         overflow: 'hidden',
-        // Remove fixed height calculation
+        backgroundColor: theme.palette.background.default,
+        borderRadius: theme.shape.borderRadius,
+        boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)',
+        // Animation for tab transition
+        opacity: value === index ? 1 : 0,
+        transition: 'opacity 0.3s ease-in-out',
       }}
       {...other}
     >
@@ -2591,8 +2686,9 @@ const TabPanel = (props: TabPanelProps) => {
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          height: '100%', // Fill parent height
-          flex: 1 // Take up all available space
+          height: '100%',
+          flex: 1,
+          p: 0.5 // Add slight padding
         }}>
           {children}
         </Box>

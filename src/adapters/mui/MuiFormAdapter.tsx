@@ -15,8 +15,8 @@ import GridRenderer from '../../GridRenderer';
  */
 export class MuiFormAdapter implements IFormAdapter {
   // Helper function to parse ISO date strings without timezone issues
-  private parseISODate(dateString: string | null | undefined) {
-    if (!dateString) return null;
+  private parseISODate(dateString: string | null | undefined): Date | undefined {
+    if (!dateString) return undefined;
     
     // Parse the YYYY-MM-DD format manually to avoid timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
