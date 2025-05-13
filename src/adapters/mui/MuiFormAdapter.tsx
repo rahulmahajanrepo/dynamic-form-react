@@ -55,7 +55,26 @@ export class MuiFormAdapter implements IFormAdapter {
           />
         );
         
-      // All other field types (for brevity, showing just two more examples)
+      case 'date':
+        return (
+          <DatePicker
+            label={field.label}
+            value={value || null}
+            onChange={(newValue) => onChange(field.name, newValue)}
+            minDate={field.min ? new Date(field.min) : undefined}
+            maxDate={field.max ? new Date(field.max) : undefined}
+            slotProps={{
+              textField: {
+                fullWidth: true,
+                required: field.required,
+                error: !!touched && !!error,
+                helperText: touched && error,
+                onBlur: onBlur
+              }
+            }}
+          />
+        );
+      
       case 'number':
         return (
           <TextField
@@ -86,11 +105,89 @@ export class MuiFormAdapter implements IFormAdapter {
           />
         );
         
-      // Add other field types (checkbox, dropdown, radio, date) 
-      // with the same implementation as in the original FormRenderer
+      case 'checkbox':
+        return (
+          <FormControl 
+            required={field.required}
+            error={!!touched && !!error}
+            component="fieldset"
+            variant="standard"
+            sx={{ width: '100%' }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!value}
+                  onChange={(e) => onChange(field.name, e.target.checked)}
+                  onBlur={onBlur}
+                />
+              }
+              label={field.label}
+            />
+            {touched && error && (
+              <FormHelperText>{error}</FormHelperText>
+            )}
+          </FormControl>
+        );
+        
+      case 'dropdown':
+        return (
+          <FormControl 
+            fullWidth
+            required={field.required}
+            error={!!touched && !!error}
+          >
+            <InputLabel>{field.label}</InputLabel>
+            <Select
+              value={value || ''}
+              label={field.label}
+              onChange={(e) => onChange(field.name, e.target.value)}
+              onBlur={onBlur}
+            >
+              {field.options?.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </Select>
+            {touched && error && (
+              <FormHelperText>{error}</FormHelperText>
+            )}
+          </FormControl>
+        );
+        
+      case 'radio':
+        return (
+          <FormControl 
+            component="fieldset"
+            required={field.required}
+            error={!!touched && !!error}
+            sx={{ width: '100%' }}
+          >
+            <FormLabel component="legend">{field.label}</FormLabel>
+            <RadioGroup
+              value={value || ''}
+              onChange={(e) => onChange(field.name, e.target.value)}
+              onBlur={onBlur}
+            >
+              {field.options?.map((option) => (
+                <FormControlLabel
+                  key={option}
+                  value={option}
+                  control={<Radio />}
+                  label={option}
+                />
+              ))}
+            </RadioGroup>
+            {touched && error && (
+              <FormHelperText>{error}</FormHelperText>
+            )}
+          </FormControl>
+        );
       
       default:
-        return <div>Unsupported field type: {field.type}</div>;
+        // Add type assertion to tell TypeScript that field has a type property
+        return <div>Unsupported field type: {(field as Field).type}</div>;
     }
   }
 
