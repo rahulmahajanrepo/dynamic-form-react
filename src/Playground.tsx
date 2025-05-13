@@ -70,7 +70,7 @@ import DependenciesTab from "./FormBuilder/components/layout/tabs/DependenciesTa
 import PreviewTab from './FormBuilder/components/layout/tabs/PreviewTab'; // Import the new component
 import DesignTab from './FormBuilder/components/layout/tabs/design/DesignTab'; // Import the new component
 
-const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'checkbox', 'grid'];
+const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'checkbox', 'grid', 'date'];
 
 // Add this interface declaration
 interface DroppableAreaProps {

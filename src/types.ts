@@ -22,7 +22,7 @@ export interface Condition {
   equals: string;
 }
 
-export type FieldType = 'text' | 'number' | 'dropdown' | 'radio' | 'textarea' | 'checkbox' | 'grid';
+export type FieldType = 'text' | 'number' | 'dropdown' | 'radio' | 'textarea' | 'checkbox' | 'grid' | 'date';
 
 // Base field interface with common properties
 export interface BaseField {
@@ -69,6 +69,14 @@ export interface CheckboxField extends BaseField {
   type: 'checkbox';
 }
 
+// Date field type
+export interface DateField extends BaseField {
+  type: 'date';
+  min?: string; // Minimum date in YYYY-MM-DD format
+  max?: string; // Maximum date in YYYY-MM-DD format
+  dateFormat?: string; // Optional format specification (e.g., 'YYYY-MM-DD')
+}
+
 // Column definition for grid
 export interface GridColumn {
   name: string;
@@ -93,7 +101,8 @@ export type Field =
   | DropdownField 
   | RadioField 
   | CheckboxField 
-  | GridField;
+  | GridField
+  | DateField;
 
 export interface GridValue {
   rows: Record<string, any>[];
@@ -139,3 +148,8 @@ export function isCheckboxField(field: Field): field is CheckboxField {
 export function isGridField(field: Field): field is GridField {
   return field.type === 'grid';
 }
+
+export function isDateField(field: Field): field is DateField {
+  return field.type === 'date';
+}
+

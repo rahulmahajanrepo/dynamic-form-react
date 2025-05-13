@@ -4,6 +4,8 @@ import {
   Radio, RadioGroup, Typography, FormHelperText, Checkbox,
   InputLabel, FormControl, FormLabel, FormGroup, Paper
 } from '@mui/material';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { Form, Field, GridField, GridValue, Section } from './types';
 import DataGrid from './DataGrid';
 import GridRenderer from './GridRenderer';
@@ -111,6 +113,33 @@ const handleChange = (name: string, value: any) => {
       }
       else if (field.pattern && field.pattern.trim() !== '' && !new RegExp(field.pattern).test(String(value))) {
         error = 'Invalid format';
+      }
+    }
+
+    // Validate date field
+    if (field.type === 'date' && value !== '') {
+      try {
+        const dateValue = new Date(value);
+        if (isNaN(dateValue.getTime())) {
+          error = 'Invalid date format';
+        }
+        
+        if (field.min) {
+          const minDate = new Date(field.min);
+          if (dateValue < minDate) {
+            error = `Date must be on or after ${field.min}`;
+          }
+        }
+        
+        if (field.max) {
+          const maxDate = new Date(field.max);
+          if (dateValue > maxDate) {
+            error = `Date must be on or before ${field.max}`;
+          }
+        }
+        console.log('Date value:', dateValue, error, field);
+      } catch (error) {
+        error = 'Invalid date';
       }
     }
     
@@ -497,6 +526,34 @@ const buildStructuredData = () => {
             </RadioGroup>
             {touched[field.name] && errors[field.name] && (
               <FormHelperText>{errors[field.name]}</FormHelperText>
+            )}
+          </FormControl>
+        )}
+        {field.type === 'date' && (
+          <FormControl
+            fullWidth
+            required={field.required}
+            error={!!touched[field.name] && !!errors[field.name]}
+          >
+            {/* Try to use the date picker, but provide a fallback if it fails */}
+              <DatePicker
+                label={field.label}
+                value={formValues[field.name] || null}
+                onChange={(newValue) => handleChange(field.name, newValue)}
+                minDate={field.min ? new Date(field.min) : undefined}
+                maxDate={field.max ? new Date(field.max) : undefined}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    required: field.required,
+                    error: !!touched[field.name] && !!errors[field.name],
+                    helperText: touched[field.name] && errors[field.name],
+                    onBlur: () => setTouched({...touched, [field.name]: true})
+                  }
+                }}
+              />
+            {touched[field.name] && errors[field.name] && !field.required && (
+              <FormHelperText error>{errors[field.name]}</FormHelperText>
             )}
           </FormControl>
         )}

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import Playground from "./Playground";
 import FormRenderer from "./FormRenderer";
 import { Form } from "./types";
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 const App: React.FC = () => {
   const [loadedForm, setLoadedForm] = useState<Form | null>(null);
@@ -23,9 +25,16 @@ const App: React.FC = () => {
   };
 
   return (
-    <div>
+    <LocalizationProvider 
+      dateAdapter={AdapterDateFns}
+      dateFormats={{ 
+        keyboardDate: 'yyyy-MM-dd' 
+      }}
+    >
+      <div>
         <Playground />
-    </div>
+      </div>
+    </LocalizationProvider>
   );
 };
 

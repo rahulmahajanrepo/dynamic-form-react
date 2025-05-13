@@ -28,6 +28,15 @@ const FieldRenderer: React.FC<FieldRendererProps> = ({
             placeholder={field.placeholder}
           />
         );
+      case "date":
+        return (
+          <input
+            type="date"
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+          />
+        );
       case "textarea":
         return (
           <textarea

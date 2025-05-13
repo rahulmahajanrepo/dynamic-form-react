@@ -14,6 +14,9 @@ import {
   Tooltip,
   IconButton
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
   Field,
@@ -27,7 +30,8 @@ import {
   DropdownField,
   NumberField,
   GridField,
-  BaseField
+  BaseField,
+  isDateField
 } from './types';
 import GridFieldSetup from './GridFieldSetup';
 import { formatNameToLabel } from './utils';
@@ -199,6 +203,50 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
 
     if (isGridField(field)) {
       return <GridFieldSetup field={field} onUpdate={onUpdate as (field: GridField) => void} />;
+    }
+
+    if (isDateField(field)) {
+      return (
+        <LocalizationProvider dateAdapter={AdapterDateFns}>
+          <Box sx={{ mb: 2 }}>
+            <DatePicker
+              label="Min Date"
+              value={field.min ? new Date(field.min) : null}
+              onChange={(date) => onUpdate({ 
+                ...field, 
+                min: date ? date.toISOString().split('T')[0] : '' 
+              })}
+              format="yyyy-MM-dd"
+              slotProps={{ 
+                textField: { 
+                  fullWidth: true,
+                  size: "small",
+                  helperText: "Minimum selectable date" 
+                } 
+              }}
+            />
+          </Box>
+          
+          <Box sx={{ mb: 2 }}>
+            <DatePicker
+              label="Max Date"
+              value={field.max ? new Date(field.max) : null}
+              onChange={(date) => onUpdate({ 
+                ...field, 
+                max: date ? date.toISOString().split('T')[0] : '' 
+              })}
+              format="yyyy-MM-dd"
+              slotProps={{ 
+                textField: { 
+                  fullWidth: true,
+                  size: "small",
+                  helperText: "Maximum selectable date" 
+                } 
+              }}
+            />
+          </Box>
+        </LocalizationProvider>
+      );
     }
 
     return null;

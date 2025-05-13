@@ -20,7 +20,6 @@ const ComponentsPanel: React.FC<ComponentsPanelProps> = ({
   addSection
 }) => {
   const theme = useTheme();
-  
   return (
     <Paper 
       elevation={3} 
