@@ -92,35 +92,95 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit, framework =
   const buildStructuredData = () => {
     const result: Record<string, any> = {};
     
-    // Process each form value
-    Object.entries(formValues).forEach(([key, value]) => {
-      // Check if it's a nested property (contains dots)
-      if (key.includes('.')) {
-        const parts = key.split('.');
-        let current = result;
-        
-        // Navigate through the object structure
-        for (let i = 0; i < parts.length - 1; i++) {
-          const part = parts[i];
-          if (!current[part]) {
-            current[part] = {};
+    // Process all top-level sections
+    form.sections.forEach((section, index) => {
+      // Skip sections that aren't visible
+      if (!isSectionVisible(section)) {
+        return;
+      }
+      
+      // Get a valid object name (using fallbacks if needed)
+      const objectKey = section.objectName || section.name || `section_${index}`;
+      
+      // Create container for this section's data
+      const sectionData: Record<string, any> = {};
+      result[objectKey] = sectionData;
+      
+      // Add fields from this section
+      section.fields?.forEach(field => {
+        if (field.name) {
+          // Check if it's a grid field
+          if (field.type === 'grid' && gridValues[field.name]) {
+            // Include grid data from gridValues state
+            sectionData[field.name] = gridValues[field.name].rows || [];
+          } 
+          // Or a regular field with a value
+          else if (formValues[field.name] !== undefined) {
+            sectionData[field.name] = formValues[field.name];
           }
-          current = current[part];
         }
+      });
+      
+      // Process nested sections if any
+      if (section.nestedSections && section.nestedSections.length > 0) {
+        // First pass: process regular nested sections (not sub-sections)
+        section.nestedSections.forEach((nestedSection, nestedIndex) => {
+          if (!isSectionVisible(nestedSection)) {
+            return;
+          }
+          
+          if (!nestedSection.isSubSection) {
+            // Get a valid object key for the nested section
+            const nestedKey = nestedSection.objectName || nestedSection.name || `nested_section_${nestedIndex}`;
+            
+            const nestedData: Record<string, any> = {};
+            sectionData[nestedKey] = nestedData;
+            
+            // Add fields from this nested section
+            nestedSection.fields?.forEach(field => {
+              if (field.name) {
+                // Check if it's a grid field
+                if (field.type === 'grid' && gridValues[field.name]) {
+                  // Include grid data from gridValues state
+                  nestedData[field.name] = gridValues[field.name].rows || [];
+                }
+                // Or a regular field with a value 
+                else if (formValues[field.name] !== undefined) {
+                  nestedData[field.name] = formValues[field.name];
+                }
+              }
+            });
+          }
+        });
         
-        // Set the value at the leaf node
-        current[parts[parts.length - 1]] = value;
-      } else {
-        // It's a top-level property
-        result[key] = value;
+        // Second pass: process sub-sections (add fields directly to parent)
+        section.nestedSections.forEach(nestedSection => {
+          if (!isSectionVisible(nestedSection)) {
+            return;
+          }
+          
+          if (nestedSection.isSubSection) {
+            // Add fields directly to parent section data
+            nestedSection.fields?.forEach(field => {
+              if (field.name) {
+                // Check if it's a grid field
+                if (field.type === 'grid' && gridValues[field.name]) {
+                  // Include grid data from gridValues state
+                  sectionData[field.name] = gridValues[field.name].rows || [];
+                }
+                // Or a regular field with a value
+                else if (formValues[field.name] !== undefined) {
+                  sectionData[field.name] = formValues[field.name];
+                }
+              }
+            });
+          }
+        });
       }
     });
     
-    // Handle grid values if they exist
-    Object.entries(gridValues).forEach(([key, value]) => {
-      result[key] = value;
-    });
-    
+    console.log('Structured data:', JSON.stringify(result, null, 2));
+    console.log(result);
     return result;
   };
 
@@ -165,9 +225,16 @@ const FormRenderer: React.FC<FormRendererProps> = ({ form, onSubmit, framework =
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
     
+    // First validate the form
+    if (!validateForm()) {
+      return;
+    }
+    
+    // Build structured data
     const structuredData = buildStructuredData();
+    
+    // Call the onSubmit callback with both raw and structured data
     onSubmit({
       rawValues: formValues,
       structuredData: structuredData
