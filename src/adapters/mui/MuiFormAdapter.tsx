@@ -9,6 +9,10 @@ import {
 import { DatePicker } from '@mui/x-date-pickers';
 import GridRenderer from '../../GridRenderer';
 
+/**
+ * MuiFormAdapter is responsible for rendering form components using Material-UI.
+ * This adapter is used to render the form in the preview tab.
+ */
 export class MuiFormAdapter implements IFormAdapter {
   renderField(field: Field, props: FieldProps): JSX.Element {
     const { value, onChange, onBlur, error, touched } = props;
@@ -56,6 +60,7 @@ export class MuiFormAdapter implements IFormAdapter {
         );
         
       case 'date':
+        console.log("adapter");
         return (
           <DatePicker
             label={field.label}

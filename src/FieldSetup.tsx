@@ -41,6 +41,14 @@ interface FieldSetupProps {
   onUpdate: (updatedField: Field) => void;
 }
 
+/**
+ * FieldSetup component
+ * 
+ * This component is used in the form designer to configure and customize properties
+ * for different types of form fields. It provides an interface for setting common field
+ * properties like name, label, tooltip, etc., as well as type-specific properties
+ * based on the selected field type (text, number, dropdown, etc.).
+ */
 const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
   // Track if label has been manually edited
   const [labelManuallyEdited, setLabelManuallyEdited] = useState(false);
@@ -206,16 +214,24 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
     }
 
     if (isDateField(field)) {
+      console.log("field setup", field);
       return (
-        <LocalizationProvider dateAdapter={AdapterDateFns}>
+        <>
           <Box sx={{ mb: 2 }}>
             <DatePicker
               label="Min Date"
               value={field.min ? new Date(field.min) : null}
-              onChange={(date) => onUpdate({ 
-                ...field, 
-                min: date ? date.toISOString().split('T')[0] : '' 
-              })}
+              onChange={(date) => {
+                if (!date) {
+                  onUpdate({ ...field, min: '' });
+                  return;
+                }
+                // Format date to YYYY-MM-DD without timezone issues
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                onUpdate({ ...field, min: `${year}-${month}-${day}` });
+              }}
               format="yyyy-MM-dd"
               slotProps={{ 
                 textField: { 
@@ -231,10 +247,17 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
             <DatePicker
               label="Max Date"
               value={field.max ? new Date(field.max) : null}
-              onChange={(date) => onUpdate({ 
-                ...field, 
-                max: date ? date.toISOString().split('T')[0] : '' 
-              })}
+              onChange={(date) => {
+                if (!date) {
+                  onUpdate({ ...field, max: '' });
+                  return;
+                }
+                // Format date to YYYY-MM-DD without timezone issues
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                onUpdate({ ...field, max: `${year}-${month}-${day}` });
+              }}
               format="yyyy-MM-dd"
               slotProps={{ 
                 textField: { 
@@ -245,7 +268,7 @@ const FieldSetup: React.FC<FieldSetupProps> = ({ field, onUpdate }) => {
               }}
             />
           </Box>
-        </LocalizationProvider>
+        </>
       );
     }
 
