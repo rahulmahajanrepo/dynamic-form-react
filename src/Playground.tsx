@@ -55,9 +55,9 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
-import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import RestoreIcon from '@mui/icons-material/Restore';
 
 import { DependencyGraph, DependencyNode, DependencyEdge, Field, Form, GridField, Section, DropdownField, RadioField,NumberField, CheckboxField, TextField as TextFieldType} from './types';
 import { formatNameToLabel } from './utils';
@@ -1653,7 +1653,7 @@ const clearDragStates = () => {
     console.log(JSON.stringify(form, null, 2));
   };
 
-  const handleOpen = () => {
+  const handleReset = () => {
   // Define the sample configuration with properly typed fields
   const sampleConfig: Form = {
     "sections": [
@@ -2489,16 +2489,16 @@ const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldInd
     <Box sx={{ display: 'flex', alignItems: 'center' }}>
       <Button 
         color="inherit" 
-        onClick={handleOpen} 
+        onClick={handleReset} 
         size="small"
-        startIcon={<CloudDownloadIcon />}
+        startIcon={<RestoreIcon />}
         sx={{ 
           mr: 1, 
           opacity: 0.9,
           '&:hover': { opacity: 1, backgroundColor: 'rgba(255,255,255,0.1)' } 
         }}
       >
-        Sample
+        Reset
       </Button>
       
       <input
@@ -2567,17 +2567,21 @@ const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldInd
           transition: 'all 0.2s',
           fontWeight: 500,
           fontSize: '0.85rem', // Smaller font
+          //backgroundColor: '#ffd700', Added gold background color
+          color: 'rgba(243, 243, 243, 0.8)', // Adding darker text for better contrast with gold
           '&:hover': {
             backgroundColor: 'rgba(255,255,255,0.1)',
           },
           '&.Mui-selected': {
             fontWeight: 600,
+            color: 'rgba(255, 255, 255, 0.8)'
           }
         },
         '& .MuiTabs-indicator': {
           height: 2, // Thinner indicator
           borderTopLeftRadius: 2,
           borderTopRightRadius: 2,
+          backgroundColor: '#ffd700', // Keep gold background for selected tab
         },
         '& .MuiSvgIcon-root': {
           fontSize: '1rem', // Smaller icons
@@ -3226,7 +3230,7 @@ const dfsCheckCycle = (
 // Then modify the Playground component to be just a wrapper with the provider;
 const Playground: React.FC = () => {
   // Add theme state
-  const [mode, setMode] = useState<PaletteMode>('dark');
+  const [mode, setMode] = useState<PaletteMode>('light');
   
   // Create theme object
   const theme = useMemo(

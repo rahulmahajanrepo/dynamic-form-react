@@ -20,7 +20,7 @@ const PreviewTab: React.FC<PreviewTabProps> = ({
       case 'tablet':
         return '768px';
       default:
-        return '100%';
+        return '900px';
     }
   };
 
