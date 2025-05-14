@@ -1,0 +1,140 @@
+{
+  "sections": [
+    {
+      "id": "section_1747189607721",
+      "name": "Index Details",
+      "objectName": "indexDetails",
+      "fields": [
+        {
+          "name": "indexName",
+          "type": "text",
+          "label": "Index Name",
+          "placeholder": "Enter text value...",
+          "required": false
+        },
+        {
+          "name": "initialValue",
+          "type": "number",
+          "label": "Initial Value",
+          "placeholder": "Enter number value...",
+          "required": false
+        },
+        {
+          "name": "tradingOffset",
+          "type": "number",
+          "label": "Trading Offset",
+          "placeholder": "Enter number value...",
+          "required": false
+        },
+        {
+          "name": "tradingCalendar",
+          "type": "text",
+          "label": "Trading Calendar",
+          "placeholder": "Enter text value...",
+          "required": false
+        },
+        {
+          "name": "startDate",
+          "type": "date",
+          "label": "Start Date",
+          "placeholder": "Enter date value...",
+          "required": false,
+          "min": "2021-05-01"
+        },
+        {
+          "name": "withTradingCost",
+          "type": "dropdown",
+          "label": "With Trading Cost",
+          "placeholder": "Enter dropdown value...",
+          "required": false,
+          "options": [
+            "yes",
+            "no"
+          ]
+        }
+      ],
+      "nestedSections": [
+        {
+          "id": "section_1747192256889",
+          "name": "Underliers With Trading Cost",
+          "objectName": "underliers_With_Trading_Cost",
+          "fields": [
+            {
+              "name": "underliers",
+              "type": "grid",
+              "label": "Underliers",
+              "placeholder": "Enter grid value...",
+              "required": false,
+              "columns": [
+                {
+                  "name": "index",
+                  "type": "text"
+                },
+                {
+                  "name": "weight",
+                  "type": "number"
+                },
+                {
+                  "name": "tradingCost",
+                  "type": "number"
+                }
+              ],
+              "defaultRows": 1
+            }
+          ],
+          "isSubSection": true,
+          "parentId": "section_1747189607721",
+          "nestedSections": [],
+          "conditionField": "withTradingCost",
+          "conditionValue": "yes"
+        },
+        {
+          "id": "section_1747192305994",
+          "name": "Sub-section 2",
+          "objectName": "sub_section_2",
+          "fields": [
+            {
+              "name": "underliers",
+              "type": "grid",
+              "label": "Underliers",
+              "placeholder": "Enter grid value...",
+              "required": false,
+              "columns": [
+                {
+                  "name": "index",
+                  "type": "text"
+                },
+                {
+                  "name": "weight",
+                  "type": "number"
+                }
+              ],
+              "defaultRows": 1
+            }
+          ],
+          "isSubSection": true,
+          "parentId": "section_1747189607721",
+          "nestedSections": [],
+          "conditionField": "withTradingCost",
+          "conditionValue": "no"
+        }
+      ]
+    },
+    {
+      "id": "section_1747189997668",
+      "name": "Extra Fields",
+      "objectName": "extraFields",
+      "fields": [
+        {
+          "name": "overAllTradingCost",
+          "type": "number",
+          "label": "Over All Trading Cost",
+          "placeholder": "Enter number value...",
+          "required": false
+        }
+      ],
+      "conditionField": "withTradingCost",
+      "conditionValue": "yes"
+    }
+  ]
+}

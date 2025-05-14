@@ -74,6 +74,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           const sectionItem = selectedItem as { type: 'section'; index: number };
           return (
             <SectionSetup
+              key={`section-${sectionItem.index}`}
               section={form.sections[sectionItem.index]}
               onUpdate={(updatedSection: Section) => updateSection(sectionItem.index, updatedSection)}
               availableFields={getAvailableFieldsForSection(sectionItem.index)}
