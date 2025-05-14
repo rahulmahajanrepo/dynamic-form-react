@@ -102,7 +102,6 @@ const FormCanvasPanel: React.FC<FormCanvasPanelProps> = ({
     // Integrate with your existing selection clearing mechanism
     setSelectedItem(null);
   };
-
   return (
     <Box sx={{ 
       height: '100%', 

@@ -1,4 +1,4 @@
-import React, { useState, ReactNode, useEffect } from 'react';
+import React, { useState, ReactNode, useEffect, useMemo } from 'react';
 import { 
   DndContext, 
   DragEndEvent, 
@@ -74,6 +74,10 @@ import PreviewIcon from '@mui/icons-material/Preview';
 import CodeIcon from '@mui/icons-material/Code';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import WebIcon from '@mui/icons-material/Web';
+import { ThemeProvider, createTheme, PaletteMode } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import Brightness4Icon from '@mui/icons-material/Brightness4'; // Dark mode icon
+import Brightness7Icon from '@mui/icons-material/Brightness7'; // Light mode icon
 
 const fieldTypes: Field['type'][] = ['text', 'number', 'dropdown', 'radio', 'textarea', 'checkbox', 'grid', 'date'];
 
@@ -85,10 +89,123 @@ interface DroppableAreaProps {
   onDragOver?: (e: React.DragEvent) => void;
 }
 
+// Define theme configuration based on mode
+const getDesignTokens = (mode: PaletteMode) => ({
+  palette: {
+    mode,
+    ...(mode === 'dark' ? {
+      primary: {
+        main: '#90caf9',
+        light: '#e3f2fd',
+        dark: '#42a5f5',
+      },
+      grey: {
+        50: '#4d4b4b',
+      },
+      secondary: {
+        main: '#ce93d8',
+        light: '#f3e5f5',
+        dark: '#ab47bc',
+      },
+      background: {
+        paper: '#272323',
+        default: '#121212',
+      },
+      text: {
+        primary: '#fff',
+        secondary: 'rgba(255, 255, 255, 0.7)',
+      },
+      divider: 'rgba(255, 255, 255, 0.12)',
+      error: {
+        main: '#f44336',
+        light: '#e57373',
+      },
+      warning: {
+        main: '#ffa726',
+        light: '#ffb74d',
+      },
+      info: {
+        main: '#29b6f6',
+        light: '#4fc3f7',
+      },
+      success: {
+        main: '#66bb6a',
+        light: '#81c784',
+      },
+    } : {
+      // Light theme remains unchanged
+    })
+  },
+  components: {
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          ...(mode === 'dark' ? {
+            backgroundImage: 'none',
+          } : {}),
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          ...(mode === 'dark' ? {
+            background: 'linear-gradient(to right, #1a237e, #283593)',
+            boxShadow: '0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(26, 35, 126, 0.4)'
+          } : {}),
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          ...(mode === 'dark' ? {
+            backgroundImage: 'none',
+          } : {}),
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          ...(mode === 'dark' ? {
+            '& .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(255, 255, 255, 0.23)',
+            },
+            '&:hover .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'rgba(255, 255, 255, 0.4)',
+            },
+          } : {}),
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          ...(mode === 'dark' ? {
+            backgroundImage: 'none',
+            backgroundColor: '#252525',
+          } : {}),
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          ...(mode === 'dark' ? {
+            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+          } : {}),
+        },
+      },
+    },
+  },
+});
+
 // Simple droppable wrapper
 const DroppableArea: React.FC<DroppableAreaProps> = ({ id, children, isActive, onDragOver }) => {
   const { setNodeRef } = useDroppable({ id });
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   
   return (
     <Box 
@@ -99,13 +216,13 @@ const DroppableArea: React.FC<DroppableAreaProps> = ({ id, children, isActive, o
         borderRadius: '4px',
         p: 1,
         position: 'relative',
-        // Enhanced visual feedback
+        // Enhanced visual feedback with dark mode consideration
         border: isActive 
           ? `2px dashed ${theme.palette.primary.main}` 
           : `1px dashed ${theme.palette.divider}`,
         backgroundColor: isActive 
-          ? alpha(theme.palette.primary.main, 0.08)
-          : 'transparent',
+          ? alpha(theme.palette.primary.main, isDarkMode ? 0.15 : 0.08)
+          : isDarkMode ? alpha(theme.palette.background.paper, 0.3) : 'transparent',
         boxShadow: isActive 
           ? `inset 0 0 0 1px ${alpha(theme.palette.primary.main, 0.2)}`
           : 'none',
@@ -195,6 +312,8 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
   isLast = false
 }) => {
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
+  
   const {
     attributes,
     listeners,
@@ -221,35 +340,48 @@ const SortableFieldItem: React.FC<SortableFieldItemProps> = ({
         my: 0.5,
         cursor: 'pointer',
         borderRadius: '4px',
-        position: 'relative', 
+        position: 'relative',
+        backgroundColor: isDarkMode 
+          ? alpha(theme.palette.background.paper, 0.8) 
+          : theme.palette.background.paper,
         border: isSelected
           ? `2px solid ${theme.palette.secondary.main}`
           : isRecentlyAdded
             ? `2px solid ${theme.palette.success.main}`
             : isDragging 
               ? `2px solid ${theme.palette.primary.main}` 
-              : '1px solid #e0e0e0',
+              : `1px solid ${isDarkMode ? alpha(theme.palette.common.white, 0.1) : '#e0e0e0'}`,
         '&:hover': {
-          backgroundColor: theme.palette.action.hover
+          backgroundColor: isDarkMode 
+            ? alpha(theme.palette.action.hover, 0.2) 
+            : theme.palette.action.hover
         },
-        boxShadow: isDragging ? theme.shadows[8] : isRecentlyAdded ? theme.shadows[4] : undefined,
+        boxShadow: isDragging 
+          ? theme.shadows[8] 
+          : isRecentlyAdded 
+            ? theme.shadows[4] 
+            : isDarkMode 
+              ? `0 2px 4px 0 ${alpha(theme.palette.common.black, 0.4)}` 
+              : undefined,
         animation: isRecentlyAdded ? 'addedFieldAnimation 0.4s ease-out' : 'none',
         '@keyframes addedFieldAnimation': {
           '0%': { 
             opacity: 0.1,
             transform: 'scale(0.8) translateY(15px)',
             borderColor: theme.palette.success.main,
-            backgroundColor: alpha(theme.palette.success.light, 0.3)
+            backgroundColor: alpha(theme.palette.success.main, isDarkMode ? 0.2 : 0.3)
           },
           '50%': { 
             opacity: 0.9,
             transform: 'scale(0.9) translateY(-5px)',
-            backgroundColor: alpha(theme.palette.success.light, 0.2)
+            backgroundColor: alpha(theme.palette.success.main, isDarkMode ? 0.15 : 0.2)
           },
           '100%': { 
             opacity: 1,
             transform: 'scale(1) translateY(0)',
-            backgroundColor: alpha(theme.palette.background.paper, 1)
+            backgroundColor: isDarkMode 
+              ? alpha(theme.palette.background.paper, 0.8) 
+              : theme.palette.background.paper
           }
         }
       }}
@@ -440,6 +572,7 @@ interface SortableSectionProps {
   onMoveNestedFieldDown: (sectionIndex: number, nestedIndex: number, fieldIndex: number, e: React.MouseEvent) => void;
 }
 
+// Update SortableSection component to look good in dark mode
 const SortableSection: React.FC<SortableSectionProps> = ({ 
   section, 
   id, 
@@ -466,6 +599,7 @@ const SortableSection: React.FC<SortableSectionProps> = ({
   onMoveNestedFieldDown
 }) => {
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   const {
     attributes,
     listeners,
@@ -511,16 +645,21 @@ const SortableSection: React.FC<SortableSectionProps> = ({
     }
     
     return (
-      <Box sx={{ ml: 3, mt: 1, pl: 2, borderLeft: '2px solid rgba(0,0,0,0.1)' }}>
+      <Box sx={{ 
+        ml: 3, 
+        mt: 1, 
+        pl: 2, 
+        borderLeft: `2px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}` 
+      }}>
         {section.nestedSections.map((nestedSection, nestedIndex) => (
           <Box 
             key={nestedSection.id || `nested-section-${nestedIndex}`}
             sx={{ 
               mb: 1, 
               p: 1, 
-              backgroundColor: '#f9f9f9',
+              backgroundColor: isDarkMode ? alpha(theme.palette.background.paper, 0.6) : '#f9f9f9',
               borderRadius: '4px',
-              border: '1px solid #e0e0e0',
+              border: `1px solid ${isDarkMode ? alpha(theme.palette.common.white, 0.1) : '#e0e0e0'}`,
               cursor: 'pointer',
               // Highlight when selected
               outline: isSelected && selectedItem?.type === 'nestedSection' && 
@@ -805,7 +944,16 @@ const useSnackbar = () => {
 };
 
 // Extract the main content to a separate component
-const FormBuilderContent: React.FC = () => {
+interface ColorModeContextType {
+  mode: PaletteMode;
+  toggleColorMode: () => void;
+}
+
+interface FormBuilderContentProps {
+  colorMode: ColorModeContextType;
+}
+
+const FormBuilderContent: React.FC<FormBuilderContentProps> = ({ colorMode }) => {
   const theme = useTheme();
   const { showSnackbar } = useSnackbar();
   const [form, setForm] = useState<Form>({
@@ -2306,7 +2454,9 @@ const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldInd
         display: 'flex', 
         flexDirection: 'column', 
         height: '100vh',
-        overflow: 'hidden' // Add this to prevent any scrollbars at the root level
+        overflow: 'hidden', // Add this to prevent any scrollbars at the root level
+        bgcolor: 'background.default',
+        color: 'text.primary',
       }}>
         {/* Compact App Bar */}
         <AppBar 
@@ -2390,6 +2540,15 @@ const moveNestedFieldDown = (sectionIndex: number, nestedIndex: number, fieldInd
       >
         Save
       </Button>
+      {/* Theme toggle button */}
+      <IconButton
+        color="inherit"
+        onClick={colorMode.toggleColorMode}
+        sx={{ ml: 1 }}
+        title={colorMode.mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {colorMode.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+      </IconButton>
     </Box>
   </Toolbar>
   
@@ -2660,6 +2819,7 @@ interface TabPanelProps {
 const TabPanel = (props: TabPanelProps) => {
   const { children, value, index, ...other } = props;
   const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   return (
     <Box
@@ -2674,7 +2834,9 @@ const TabPanel = (props: TabPanelProps) => {
         overflow: 'hidden',
         backgroundColor: theme.palette.background.default,
         borderRadius: theme.shape.borderRadius,
-        boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)',
+        boxShadow: isDarkMode 
+          ? 'inset 0 0 10px rgba(0,0,0,0.3)' 
+          : 'inset 0 0 10px rgba(0,0,0,0.05)',
         // Animation for tab transition
         opacity: value === index ? 1 : 0,
         transition: 'opacity 0.3s ease-in-out',
@@ -3061,12 +3223,35 @@ const dfsCheckCycle = (
   return false;
 };
 
-// Then modify the Playground component to be just a wrapper with the provider
+// Then modify the Playground component to be just a wrapper with the provider;
 const Playground: React.FC = () => {
+  // Add theme state
+  const [mode, setMode] = useState<PaletteMode>('dark');
+  
+  // Create theme object
+  const theme = useMemo(
+    () => createTheme(getDesignTokens(mode)),
+    [mode]
+  );
+
+  // Theme toggle handler
+  const colorMode = useMemo(
+    () => ({
+      mode,
+      toggleColorMode: () => {
+        setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+      },
+    }),
+    [mode]
+  );
+
   return (
-    <SnackbarProvider>
-      <FormBuilderContent />
-    </SnackbarProvider>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <SnackbarProvider>
+        <FormBuilderContent colorMode={colorMode} />
+      </SnackbarProvider>
+    </ThemeProvider>
   );
 };
 
